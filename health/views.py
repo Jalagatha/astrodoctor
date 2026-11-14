@@ -158,7 +158,7 @@ def manifest(request):
 def service_worker(request):
     shell = json.dumps(["/offline/", "/mission/offline/", static("health/meridian.js"), static("health/app.js"), static("health/app.css"), static("health/ui.js"), static("health/camera.js"), static("health/icon.svg")])
     script = """
-const CACHE = "astrodoctor-shell-v7";
+const CACHE = "astrodoctor-shell-v8";
 const SHELL = __SHELL__;
 self.addEventListener("install", event => {
   event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(SHELL)));

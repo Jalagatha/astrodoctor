@@ -9,7 +9,7 @@
       request.onerror = () => reject(request.error);
     });
     return new Promise((resolve, reject) => {
-      const tx = db.transaction("state", action === "get" ? "readonly" : "readwrite");
+      const tx = db.transaction("state", ["get", "getAll"].includes(action) ? "readonly" : "readwrite");
       const store = tx.objectStore("state");
       const request = action === "put" ? store.put(value, key) : action === "clear" ? store.clear() : store[action](key);
       tx.oncomplete = () => { db.close(); resolve(request.result); };
@@ -30,7 +30,7 @@
   const mode = document.getElementById("mission-mode");
   const pending = document.getElementById("mission-pending");
   const simulate = document.getElementById("mission-ground-offline");
-  let snapshot, outbox = [], lastSync = null, syncing = false, mutation = Promise.resolve();
+  let snapshot, outbox = [], lastSync = null, syncing = false, degraded = false, mutation = Promise.resolve();
   const offline = () => !navigator.onLine || simulate.checked;
   const say = (message) => { feedback.textContent = message; };
   const node = (tag, text, className) => {
@@ -46,7 +46,7 @@
     return item;
   };
   function updateStatus() {
-    mode.textContent = `Mission day ${snapshot?.day || "—"} · ${offline() ? "Offline" : "Online"}`;
+    mode.textContent = `Mission day ${snapshot?.day || "—"} · ${offline() ? "Offline" : degraded ? "Degraded" : "Online"}`;
     pending.textContent = `${outbox.length} waiting · Last sync: ${lastSync ? new Date(lastSync).toLocaleString() : "not yet"}`;
   }
   function serialized(callback) {
@@ -54,11 +54,14 @@
     mutation = next.catch(() => {});
     return next;
   }
+  async function pendingItems() {
+    return (await storage("getAll")).filter(item => item?.kind === "outbox" && item.owner === snapshot.owner);
+  }
   async function queue(endpoint, payload, priority = 2) {
     await serialized(async () => {
-      const next = [...outbox, { owner: snapshot.owner, endpoint, payload, priority, queuedAt: Date.now() }];
-      await storage("put", `outbox-${snapshot.owner}`, next);
-      outbox = next;
+      const item = { kind: "outbox", owner: snapshot.owner, endpoint, payload, priority, queuedAt: Date.now() };
+      await storage("put", `pending-${snapshot.owner}-${payload.client_id}`, item);
+      outbox = await pendingItems();
     });
     updateStatus();
     say("Saved on this device. Waiting to sync; new check-ins are assessed by the local service after delivery.");
@@ -71,6 +74,8 @@
       const session = await fetch("/mission/session/", { credentials: "same-origin", cache: "no-store" });
       if (session.redirected || !session.ok || !(session.headers.get("content-type") || "").includes("application/json")) throw new Error("Sign in again before syncing.");
       if ((await session.json()).owner !== snapshot.owner) throw new Error("The account changed. Return to the signed-in account's overview before syncing.");
+      degraded = false;
+      outbox = await pendingItems();
       for (const item of [...outbox].sort((a, b) => a.priority - b.priority || a.queuedAt - b.queuedAt)) {
         if (offline()) break;
         if (item.owner !== snapshot.owner) throw new Error("A queued item belongs to another account; sync stopped.");
@@ -80,15 +85,15 @@
         const result = await response.json();
         if (!response.ok) throw new Error(`${result.error || "Sync failed"} The queued item is retained.`);
         await serialized(async () => {
-          const remaining = outbox.filter((entry) => entry.payload.client_id !== item.payload.client_id);
-          await storage("put", `outbox-${snapshot.owner}`, remaining);
-          outbox = remaining;
+          await storage("delete", `pending-${snapshot.owner}-${item.payload.client_id}`);
+          outbox = await pendingItems();
         });
         lastSync = Date.now();
         await storage("put", `lastSync-${snapshot.owner}`, lastSync);
         say("Pending item synced successfully. Reload the overview to see updated assessments.");
       }
     } catch (error) {
+      degraded = true;
       say(error instanceof TypeError ? "Connection unavailable. Pending items remain on this device." : error.message);
     } finally { syncing = false; updateStatus(); }
   }
@@ -131,6 +136,10 @@
     panel.id = `finding-${finding.id}`;
     panel.append(node("h2", `${details.glyph} ${finding.domain}: ${finding.level}`), node("p", `Day ${finding.mission_day} · ${finding.status} · ${snapshot.rule}`, "muted"));
     const section = (title, text) => panel.append(node("h3", title), node("p", text));
+    if (finding.override) panel.append(node("p", `Medical-officer override: assessed ${finding.assessed_level}, displayed ${finding.level}. Reason: ${finding.override.reason}`, "medical-note"));
+    const fullFinding = node("a", "Finding history & triage", "button button-secondary");
+    fullFinding.href = `/mission/finding/${finding.id}/`;
+    panel.append(fullFinding);
     section("What changed", details.what_changed);
     section("Why it matters", details.why_it_matters);
     section("Measurements", details.metrics.map(m => `${m.label}: ${m.value} ${m.unit}; baseline median ${m.median?.toFixed(2)} from ${m.sample_count} samples`).join(". "));
@@ -189,6 +198,7 @@
     snapshot.domains.forEach(domain => {
       const card = node("section", undefined, "card mission-domain");
       card.append(node("h2", `${domain.glyph} ${domain.domain} · ${domain.level}`), node("p", domain.what_changed, "muted"));
+      if (domain.override) card.append(node("p", `Displayed level overridden. Engine assessment: ${domain.assessed_level}. Reason: ${domain.override.reason}`, "medical-note"));
       domain.metrics.forEach(metric => {
         const metricPanel = node("div", undefined, "mission-metric");
         metricPanel.append(node("h3", metric.label), node("p", `${metric.value ?? "Missing"} ${metric.unit} · ${metric.sample_count} prior baseline samples${metric.provisional ? " · Provisional" : ""} · Data age: ${metric.data_age == null ? "unavailable" : metric.data_age + " days"}`));
@@ -203,11 +213,20 @@
     app.append(timeline);
     const findingList = node("section"); findingList.id = "findings";
     if (!snapshot.findings.length) findingList.append(node("p", "No sustained findings on this day. UNKNOWN domains still need data or baseline samples.", "mission-honesty"));
-    snapshot.findings.forEach(finding => findingList.append(showFinding(finding)));
+    snapshot.findings.forEach(finding => {
+      const disclosure = node("details", undefined, "mission-finding-disclosure");
+      disclosure.append(node("summary", `${finding.details.glyph} ${finding.domain} · ${finding.level} — Open finding`), showFinding(finding));
+      findingList.append(disclosure);
+    });
     app.append(findingList);
     if (snapshot.can_write) renderCheckin();
     app.append(node("p", snapshot.limitations, "mission-honesty"));
-    if (location.hash) document.getElementById(location.hash.slice(1))?.scrollIntoView();
+    if (location.hash) {
+      const target = document.getElementById(location.hash.slice(1));
+      const disclosure = target?.closest("details");
+      if (disclosure) disclosure.open = true;
+      target?.scrollIntoView();
+    }
   }
   function renderCheckin() {
     const section = node("section", undefined, "card profile-detail"); section.id = "checkin";
@@ -235,6 +254,38 @@
         form.replaceChildren(node("p", "Check-in saved or queued. It will be assessed after delivery. Reload before entering another day."));
       } catch { say("Could not save this check-in to device storage. Please retry."); save.disabled = false; }
     });
+    const progress = node("p", "Question 1 of 5", "muted");
+    const back = button("Back", () => go(step - 1));
+    const next = button("Next", () => {
+      const fields = steps[step].querySelectorAll("input, textarea");
+      if ([...fields].every(field => field.reportValidity())) go(step + 1);
+    }, "button button-primary");
+    const groups = [["mission_day", "sleep_quality", "sleep_hours"], ["fatigue_score"], ["mood_score"], ["workload_score", "resting_hr", "symptoms"]];
+    const titles = ["How did you sleep?", "How fatigued do you feel?", "How is your mood?", "Workload and other observations", "Confirm your check-in"];
+    const steps = groups.map((names, index) => {
+      const stepPanel = node("fieldset");
+      stepPanel.append(node("legend", titles[index]));
+      names.forEach(name => stepPanel.append(form.querySelector(`[name="${name}"]`).parentElement));
+      return stepPanel;
+    });
+    const confirmation = node("fieldset"); confirmation.append(node("legend", titles[4]));
+    const summary = node("dl", undefined, "profile-facts"); confirmation.append(summary); steps.push(confirmation);
+    let step = 0;
+    function go(index) {
+      step = Math.max(0, Math.min(4, index));
+      steps.forEach((panel, i) => { panel.hidden = i !== step; });
+      progress.textContent = `Question ${step + 1} of 5`;
+      back.hidden = step === 0; next.hidden = step === 4; save.hidden = step !== 4;
+      if (step === 4) {
+        summary.replaceChildren();
+        for (const [name, value] of new FormData(form)) {
+          const entry = node("div"); entry.append(node("dt", name.replaceAll("_", " ")), node("dd", value || "Not provided")); summary.append(entry);
+        }
+      }
+    }
+    form.prepend(progress, ...steps);
+    const navigation = node("div", undefined, "checkin-actions"); navigation.append(back, next, save); form.append(navigation);
+    go(0);
     section.append(form); app.append(section);
   }
   document.getElementById("mission-sync").addEventListener("click", sync);
@@ -249,10 +300,11 @@
       if (snapshot && cached && cached.owner !== snapshot.owner) await storage("delete", "snapshot");
       if (snapshot) await storage("put", "snapshot", snapshot);
       else snapshot = cached;
-      outbox = snapshot ? await storage("get", `outbox-${snapshot.owner}`) || [] : [];
+      outbox = snapshot ? await pendingItems() : [];
       lastSync = snapshot ? await storage("get", `lastSync-${snapshot.owner}`) : null;
     } catch { say("Device storage is unavailable. The online view works, but offline saves are unavailable."); }
     if (!snapshot) { say("No mission snapshot is saved on this device. Reconnect and open an astronaut overview first."); return; }
+    degraded = !source && navigator.onLine;
     render(); updateStatus();
     if (source) sync();
   }

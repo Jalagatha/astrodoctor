@@ -73,4 +73,4 @@ Access controls and audit design begin with the schema; they must not be postpon
 
 ## Status
 
-This is an implementation alignment and acceptance plan. The Meridian ingestion, scoped engine, exposure linking, alert lifecycle, and full offline workflow have not yet been implemented. Existing tests cover the legacy dashboard and recently added features; they do not demonstrate compliance with the two supplied documents.
+An initial implementation now covers the native workbook importer, scoped observations, median/MAD engine, scenario classifications, recorded exposure associations, role views, finding actions, check-ins, an offline snapshot/outbox, audit verification, non-URGENT override history, a versioned triage runner, and a local ground-summary/guidance workflow. The included triage checklist is explicitly nonclinical; reviewed medical protocol content is still required. See `MERIDIAN_DEMO.md` for reproducible acceptance steps and the explicit remaining requirements. This does not yet constitute full compliance with either supplied document.

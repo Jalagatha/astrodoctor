@@ -1,6 +1,8 @@
-# Astro-Doctor
+# Meridian / Astro-Doctor
 
-Astro-Doctor is a prototype crew-health dashboard. The installable Django PWA is the astronaut-facing interface; the existing Streamlit dashboard remains available for operators. Both use the same PostgreSQL database and Django staff accounts.
+The **Meridian workflow** now imports the supplied multi-sheet synthetic workbook directly, separates astronaut records, and uses quality-aware median/MAD baselines. Medical officers can record audited non-URGENT overrides, run versioned triage sessions, and exchange summaries and guidance through a local simulated ground link. Start with [the Meridian demo guide](docs/MERIDIAN_DEMO.md) for setup, demo accounts, the three acceptance scenarios, and current limitations.
+
+The original Astro-Doctor workflow below remains available when no Meridian workbook is loaded. Astro-Doctor is a prototype crew-health dashboard. The installable Django PWA is the astronaut-facing interface; the existing Streamlit dashboard remains available for operators. Both use the same PostgreSQL database and Django staff accounts.
 
 > **Medical safety:** This prototype and its synthetic thresholds/actions are not clinically validated or approved for flight operations. Do not use it to diagnose, triage, or replace a Crew Medical Officer. Validate the clinical logic, human factors, offline behavior, privacy, and operational procedures before real crew use.
 
@@ -29,7 +31,7 @@ Choose a file or select **Take a photo** to request camera access. Camera captur
 
 ## UI preferences and developer team
 
-Use the footer controls to choose light or dark panels and any of the six supplied backgrounds. Preferences persist across pages and browser sessions and update across tabs. Crew search filters the directory immediately. Profile forms offer portrait previews, biography character counts, saving feedback, and a warning before leaving unsaved edits. Browser storage contains appearance preferences only; form contents are not saved as drafts.
+Use the footer controls to choose light or dark panels and any of the six supplied backgrounds. Preferences persist across pages and browser sessions and update across tabs. Crew search filters the directory immediately. Profile forms offer portrait previews, biography character counts, saving feedback, and a warning before leaving unsaved edits. Appearance preferences use localStorage. Meridian stores synthetic mission snapshots and queued actions in IndexedDB; profile forms are not saved as drafts.
 
 Open **Meet the developers** in the footer to fill five developer slots. Each profile supports a name, role, biography, portrait, email, GitHub link, and website. Staff can add or edit profiles. The database restricts slots to 1–5 and makes each slot unique. Run `python manage.py migrate` after updating the app.
 

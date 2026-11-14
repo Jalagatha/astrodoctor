@@ -1,3 +1,4 @@
+import copy
 import json
 import math
 import uuid
@@ -19,8 +20,9 @@ from .access import ScopeDenied, access_for, require_scope
 from .audit import record, verify
 from .engine import replay
 from .ingestion import import_workbook, positive_int
-from .models import AlertAction, Assessment, Astronaut, AuditEntry, Exposure, Finding, ImportReport, MissionCheckIn, Observation, RuleVersion
-from .rules import INDICATORS, LEVEL_ORDER
+from .models import AlertAction, Assessment, Astronaut, AuditEntry, Exposure, Finding, ImportReport, MissionCheckIn, Observation, RuleVersion, TriageProtocol
+from .rules import GLYPHS, INDICATORS, LEVEL_ORDER
+from .workflows import display_level, latest_override, NON_URGENT, packet as queue_packet
 
 
 def mission_view(function):
@@ -57,10 +59,23 @@ def overview_payload(user, astronaut_id, day=None, days=30, excluded=False):
     observations = list(rows.values("id", "mission_day", "indicator_code", "value", "unit", "accepted", "exclusion_reason", "source_type"))
     prompts = list(Observation.objects.filter(astronaut=astronaut, mission_day=day, accepted=False).values("id", "indicator_code", "value", "exclusion_reason"))
     exposures = list(Exposure.objects.filter(Q(scope="crew") | Q(scope=astronaut_id), start_day__lte=day, end_day__gte=start).values())
-    findings = list(Finding.objects.filter(astronaut=astronaut, mission_day=day, rule=rule).values("id", "domain", "level", "status", "mission_day", "details"))
+    findings = []
+    domains = copy.deepcopy(assessment.domains) if assessment else []
+    for item in Finding.objects.filter(astronaut=astronaut, mission_day=day, rule=rule).prefetch_related("overrides"):
+        override = latest_override(item)
+        displayed = display_level(item)
+        details = copy.deepcopy(item.details)
+        details["glyph"] = GLYPHS[displayed]
+        entry = {"id": item.pk, "domain": item.domain, "level": displayed, "assessed_level": item.level, "status": item.status, "mission_day": item.mission_day, "details": details,
+                 "override": {"reason": override.reason, "actor": override.actor_id, "at": override.created_at.isoformat()} if override else None}
+        findings.append(entry)
+        if override:
+            for domain in domains:
+                if domain["domain"] == item.domain:
+                    domain.update(level=displayed, assessed_level=item.level, glyph=GLYPHS[displayed], override=entry["override"])
     access = access_for(user)
     return {"owner": user.pk, "astronaut": {"id": astronaut.pk, "display_name": astronaut.display_name}, "day": day, "latest_day": latest_day,
-            "days": days, "domains": assessment.domains if assessment else [], "observations": observations,
+            "days": days, "domains": domains, "observations": observations,
             "exposures": exposures, "findings": findings, "quality_prompts": prompts, "excluded_count": excluded_count,
             "rule": rule.pk if rule else None, "placeholder": True, "origin": "SYNTHETIC", "can_write": user.is_superuser or (access and access.role in {"astronaut", "medical_officer"}),
             "limitations": "Demonstration rules only. No validated urgent protocol or clinical predictions. Environmental magnitudes are placeholders."}
@@ -77,16 +92,26 @@ def home(request):
         return redirect("mission_rules")
     if request.user.is_superuser or (access and access.role in {"medical_officer", "flight_surgeon"}):
         crew = []
+        latest_day = Observation.objects.aggregate(day=Max("mission_day"))["day"] or 1
+        try:
+            selected_day = min(positive_int(request.GET.get("day", latest_day)), latest_day)
+        except (ValueError, TypeError, OverflowError) as exc:
+            return JsonResponse({"error": str(exc)}, status=400)
         rule = active_rule()
         for astronaut in Astronaut.objects.all():
-            assessment = Assessment.objects.filter(astronaut=astronaut, rule=rule).order_by("-mission_day").first()
-            domains = assessment.domains if assessment else []
+            assessment = Assessment.objects.filter(astronaut=astronaut, rule=rule, mission_day=selected_day).first()
+            domains = copy.deepcopy(assessment.domains) if assessment else []
+            if assessment:
+                for item in Finding.objects.filter(astronaut=astronaut, mission_day=assessment.mission_day, rule=rule).prefetch_related("overrides"):
+                    for domain in domains:
+                        if domain["domain"] == item.domain:
+                            domain["level"] = display_level(item)
             level = min((domain["level"] for domain in domains), key=lambda value: LEVEL_ORDER[value], default="UNKNOWN")
             crew.append({"astronaut": astronaut, "level": level, "day": assessment.mission_day if assessment else None,
-                         "findings": Finding.objects.filter(astronaut=astronaut, status__in=["open", "acknowledged", "escalated"]).count(),
+                         "findings": Finding.objects.filter(astronaut=astronaut, mission_day=selected_day, rule=rule, status__in=["open", "acknowledged", "escalated"]).count(),
                          "data_status": "Partial" if any(d["level"] == "UNKNOWN" for d in domains) else "Full" if domains else "Unknown"})
         crew.sort(key=lambda item: LEVEL_ORDER[item["level"]])
-        return render(request, "meridian/crew.html", {"crew": crew, "mission_access": access, "import_report": ImportReport.objects.order_by("-pk").first()})
+        return render(request, "meridian/crew.html", {"crew": crew, "selected_day": selected_day, "latest_day": latest_day, "mission_access": access, "import_report": ImportReport.objects.order_by("-pk").first()})
     return render(request, "meridian/denied.html", status=403)
 
 
@@ -111,8 +136,12 @@ def finding(request, pk):
     item = get_object_or_404(Finding, pk=pk)
     require_scope(request.user, item.astronaut_id)
     access = access_for(request.user)
-    return render(request, "meridian/finding.html", {"finding": item, "details": item.details,
-        "can_write": request.user.is_superuser or (access and access.role in {"astronaut", "medical_officer"})})
+    details = copy.deepcopy(item.details)
+    details["glyph"] = GLYPHS[display_level(item)]
+    return render(request, "meridian/finding.html", {"finding": item, "details": details,
+        "can_write": request.user.is_superuser or (access and access.role in {"astronaut", "medical_officer"}),
+        "can_override": request.user.is_superuser or (access and access.role == "medical_officer"),
+        "displayed_level": display_level(item), "overrides": item.overrides.select_related("actor"), "override_levels": NON_URGENT, "client_id": str(uuid.uuid4())})
 
 
 @mission_view
@@ -140,10 +169,11 @@ def finding_action(request, pk):
                 if existing.actor_id != request.user.pk or existing.finding_id != item.pk or existing.action != action or existing.reason != reason:
                     raise ValueError("This action identifier belongs to different content.")
                 return JsonResponse({"ok": True, "created": False})
-            AlertAction.objects.create(client_id=key, finding=item, actor=request.user, action=action, reason=reason)
+            saved_action = AlertAction.objects.create(client_id=key, finding=item, actor=request.user, action=action, reason=reason)
             item.status = {"acknowledge": "acknowledged", "dismiss": "dismissed", "escalate": "escalated"}[action]
             item.save(update_fields=["status"])
             record(request.user.pk, f"alert_{action}", item.astronaut_id, {"finding": item.pk, "reason": reason, "original_level": item.level, "client_id": str(key)})
+            queue_packet("finding_action", item.astronaut_id, saved_action.pk, {"finding_id": item.pk, "action": action, "reason": reason, "assessed_level": item.level, "displayed_level": display_level(item), "actor": request.user.pk}, 1 if action == "escalate" else 3)
         return JsonResponse({"ok": True, "created": True, "status": item.status})
     except (ValueError, TypeError, AttributeError) as exc:
         return JsonResponse({"error": str(exc)}, status=400)
@@ -195,6 +225,7 @@ def check_in(request, astronaut_id):
                     value=value, unit=INDICATORS[code]["unit"], source_type="manual_self_report", entered_by=request.user)
             record(request.user.pk, "checkin_saved", astronaut_id, {"client_id": str(key), "day": day, "observed_indicators": [code for code in values if code != "symptoms"]})
             replay()
+            queue_packet("observations", astronaut_id, str(key), {"day": day, "values": values, "actor": request.user.pk}, 2)
         return JsonResponse({"ok": True, "created": True, "day": day})
     except (ValueError, TypeError, AttributeError, OverflowError) as exc:
         return JsonResponse({"error": str(exc)}, status=400)
@@ -204,12 +235,15 @@ def check_in(request, astronaut_id):
 def alerts(request, astronaut_id):
     astronaut = require_scope(request.user, astronaut_id)
     status = request.GET.get("status", "open")
-    items = Finding.objects.filter(astronaut=astronaut, rule=active_rule())
+    items = Finding.objects.filter(astronaut=astronaut, rule=active_rule()).prefetch_related("overrides")
     if status in {"open", "acknowledged", "dismissed", "resolved", "escalated"}:
         items = items.filter(status=status)
+    items = list(items)
+    for item in items:
+        item.displayed_level = display_level(item)
     if request.GET.get("level") in LEVEL_ORDER:
-        items = items.filter(level=request.GET["level"])
-    items = sorted(items, key=lambda item: (LEVEL_ORDER[item.level], -item.mission_day))
+        items = [item for item in items if item.displayed_level == request.GET["level"]]
+    items.sort(key=lambda item: (LEVEL_ORDER[item.displayed_level], -item.mission_day))
     return render(request, "meridian/alerts.html", {"astronaut": astronaut, "findings": items, "status": status})
 
 
@@ -249,7 +283,7 @@ def audit(request):
 @mission_view
 def rules(request):
     require_scope(request.user, roles=["medical_officer", "rule_administrator"])
-    return render(request, "meridian/rules.html", {"rules": RuleVersion.objects.order_by("-created_at")})
+    return render(request, "meridian/rules.html", {"rules": RuleVersion.objects.order_by("-created_at"), "protocols": TriageProtocol.objects.all()})
 
 
 @mission_view

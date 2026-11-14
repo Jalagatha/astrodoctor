@@ -145,3 +145,101 @@ class ImportReport(models.Model):
     filename = models.CharField(max_length=180)
     content_hash = models.CharField(max_length=64)
     report = models.JSONField()
+
+
+class FindingOverride(models.Model):
+    client_id = models.UUIDField(unique=True)
+    finding = models.ForeignKey(Finding, on_delete=models.PROTECT, related_name="overrides")
+    actor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+    original_level = models.CharField(max_length=20)
+    previous_display_level = models.CharField(max_length=20)
+    displayed_level = models.CharField(max_length=20)
+    reason = models.CharField(max_length=2000)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-id"]
+
+
+class TriageProtocol(models.Model):
+    id = models.CharField(primary_key=True, max_length=80)
+    title = models.CharField(max_length=160)
+    definition = models.JSONField()
+    content_hash = models.CharField(max_length=64)
+    demonstration = models.BooleanField(default=True)
+    approved_by = models.CharField(max_length=160, blank=True)
+    approval_reference = models.CharField(max_length=240, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+
+class TriageSession(models.Model):
+    client_id = models.UUIDField(unique=True)
+    finding = models.ForeignKey(Finding, on_delete=models.PROTECT, related_name="triage_sessions")
+    protocol = models.ForeignKey(TriageProtocol, on_delete=models.PROTECT)
+    started_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+    current_question = models.CharField(max_length=80, blank=True)
+    status = models.CharField(max_length=20, default="active")
+    urgent_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-id"]
+
+
+class TriageAnswer(models.Model):
+    client_id = models.UUIDField(unique=True)
+    session = models.ForeignKey(TriageSession, on_delete=models.PROTECT, related_name="answers")
+    actor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+    question_code = models.CharField(max_length=80)
+    question_text = models.TextField()
+    answer_value = models.CharField(max_length=80)
+    answer_label = models.CharField(max_length=240)
+    urgent = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["id"]
+        constraints = [models.UniqueConstraint(fields=["session", "question_code"], name="one_triage_answer_per_question")]
+
+
+class GroundPacket(models.Model):
+    client_id = models.UUIDField(unique=True)
+    astronaut = models.ForeignKey(Astronaut, on_delete=models.PROTECT)
+    kind = models.CharField(max_length=30)
+    payload = models.JSONField()
+    priority = models.PositiveSmallIntegerField(default=2)
+    created_at = models.DateTimeField(auto_now_add=True)
+    delivered_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["priority", "id"]
+
+
+class GroundGuidance(models.Model):
+    client_id = models.UUIDField(unique=True)
+    packet = models.ForeignKey(GroundPacket, on_delete=models.PROTECT, related_name="guidance")
+    author = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+    text = models.CharField(max_length=4000)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-id"]
+
+
+class GuidanceRead(models.Model):
+    guidance = models.ForeignKey(GroundGuidance, on_delete=models.PROTECT, related_name="read_receipts")
+    actor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["guidance", "actor"], name="one_guidance_receipt_per_actor")]
+
+
+class GroundLinkState(models.Model):
+    id = models.PositiveSmallIntegerField(primary_key=True, default=1, editable=False)
+    available = models.BooleanField(default=False)
+    last_sync_at = models.DateTimeField(null=True, blank=True)

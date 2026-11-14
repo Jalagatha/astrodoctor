@@ -6,3 +6,4 @@ staticfiles/
 *.log
 media/
 *.sqlite3
+.meridian-demo-credentials.txt

@@ -342,3 +342,27 @@ html[data-theme="dark"] .chart-value { stroke: #8de2c5; }
 .mission-checkin { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 20px; }
 .mission-checkin label { display: grid; gap: 8px; font-size: 13px; }
 @media (max-width: 600px) { .mission-checkin { grid-template-columns: 1fr; } .brand-light { display: none; } .mission-nav { gap: 8px; } .finding-reading { padding: 18px; } }
+.mission-finding-disclosure { margin-block: 12px; }
+.mission-finding-disclosure > summary { cursor: pointer; background: var(--paper); color: var(--ink); padding: 20px; border: 1px solid var(--line); border-radius: 12px; font-weight: 700; }
+.mission-checkin { display: block; }
+.mission-checkin fieldset { border: 0; margin: 20px 0; padding: 0; }
+.mission-checkin legend { font-size: 20px; font-weight: 600; margin-bottom: 20px; }
+.mission-checkin label { margin-block: 16px; }
+.mission-checkin .checkin-actions { justify-content: space-between; }
+@media (max-width: 600px) {
+  .mission-nav { position: sticky; top: 0; z-index: 6; padding: 8px; margin-inline: -8px; background: #102b36; border-radius: 8px; }
+  .page:has(.mission-nav) .mission-status { top: 58px; }
+}
+.workflow-form { display: grid; gap: 12px; margin-block: 20px; }
+.workflow-form input:not([type="radio"]):not([type="hidden"]), .workflow-form textarea, .workflow-form select { padding: 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--paper); color: var(--ink); font: inherit; }
+.workflow-form textarea { min-height: 110px; resize: vertical; }
+.workflow-form fieldset { padding: 0; border: 0; }
+.workflow-form legend { font-size: 20px; font-weight: 700; margin-bottom: 14px; }
+.protocol-option { display: block; margin: 12px 0; padding: 14px; border: 1px solid var(--line); border-radius: 9px; cursor: pointer; }
+.protocol-option input { margin-right: 10px; accent-color: var(--teal); }
+.workflow-pause { margin-top: 20px; }
+.workflow-inline { display: flex; gap: 15px; align-items: center; flex-wrap: wrap; }
+.answer-history li { margin-bottom: 22px; }
+.answer-history p { margin: 6px 0; }
+.urgent-protocol { padding: 20px; border: 2px solid var(--red); border-radius: 12px; margin-block: 20px; }
+.guidance-message { padding: 15px; border-left: 3px solid var(--teal); background: var(--mint); margin-block: 18px; }

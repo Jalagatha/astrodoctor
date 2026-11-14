@@ -8,6 +8,7 @@ from health.models import DatasetLock
 from .audit import record
 from .models import Assessment, Astronaut, Exposure, Finding, Observation, RuleVersion
 from .rules import DOMAINS, GLYPHS, INDICATORS, LINK_RULES
+from .workflows import queue_finding
 
 
 def assess_astronaut(astronaut, rule):
@@ -98,6 +99,7 @@ def assess_astronaut(astronaut, rule):
             domains.append(details)
             if level in {"OBSERVE", "ATTENTION", "URGENT"}:
                 finding, created = Finding.objects.get_or_create(astronaut=astronaut, mission_day=day, domain=domain, rule=rule, defaults={"level": level, "details": details})
+                queue_finding(finding)
                 if created:
                     record("engine", "finding_created", astronaut.pk, {"finding_id": finding.pk, "day": day, "level": level, "rule": rule.pk})
                     created_count += 1

@@ -1,0 +1,71 @@
+const { chromium } = require('playwright');
+const fs = require('fs');
+const assert = require('node:assert/strict');
+(async () => {
+  const credentials = fs.readFileSync('.meridian-demo-credentials.txt', 'utf8');
+  const browser = await chromium.launch({ executablePath: process.env.MERIDIAN_CHROME || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', headless: true });
+  const errors = [];
+  const base = 'http://127.0.0.1:8000';
+  async function signIn(username) {
+    const password = credentials.match(new RegExp(`username=${username} password=(\\S+)`))[1];
+    const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+    const page = await context.newPage();
+    page.on('pageerror', error => errors.push(error.message));
+    await page.goto(`${base}/accounts/login/`);
+    await page.locator('[name=username]').fill(username);
+    await page.locator('[name=password]').fill(password);
+    await Promise.all([page.waitForURL('**/mission/**'), page.locator('button[type=submit]').click()]);
+    return page;
+  }
+  try {
+    const medical = await signIn('U-MO-01');
+    await medical.goto(`${base}/mission/astronaut/AST-01/?day=22`);
+    await medical.locator('.mission-finding-disclosure summary').first().click();
+    await medical.getByRole('link', { name: 'Finding history & triage' }).first().click();
+    const findingURL = medical.url();
+    await medical.locator('#override-level').selectOption('ATTENTION');
+    await medical.locator('#override-reason').fill('Synthetic browser check: request closer review.');
+    await medical.getByRole('button', { name: 'Save override', exact: true }).click();
+    await medical.getByRole('heading', { name: /Cardiovascular: ATTENTION/ }).waitFor();
+    await medical.getByRole('link', { name: 'Start triage', exact: true }).click();
+    await medical.locator('#triage-protocol').selectOption('workflow-demo-v1');
+    await medical.getByRole('button', { name: 'Start session', exact: true }).click();
+    await medical.getByLabel('Still need review', { exact: true }).check();
+    await medical.getByRole('button', { name: 'Save answer & continue' }).click();
+    await medical.getByRole('button', { name: 'Pause session' }).click();
+    await medical.getByRole('button', { name: 'Resume session' }).click();
+    await medical.getByLabel('Request medical-officer review', { exact: true }).check();
+    await medical.getByRole('button', { name: 'Save answer & continue' }).click();
+    await medical.getByRole('button', { name: 'Finish & queue summary' }).click();
+    await medical.getByText(/Summary saved in the ground outbox/).waitFor();
+    await medical.getByRole('link', { name: 'Ground link', exact: true }).click();
+    await medical.getByLabel('Simulated ground link available').check();
+    await medical.getByRole('button', { name: 'Update link' }).click();
+    await medical.getByRole('button', { name: 'Send pending summaries' }).click();
+    const summary = medical.locator('a.mission-alert-row').filter({ hasText: 'triage_summary' }).first();
+    const summaryURL = await summary.getAttribute('href');
+    const ground = await signIn('U-FS-01');
+    await ground.goto(base + summaryURL);
+    const message = `Synthetic handoff verified ${Date.now()}`;
+    await ground.locator('#ground-guidance').fill(message);
+    await ground.getByRole('button', { name: 'Save guidance' }).click();
+    await ground.getByText(message, { exact: true }).waitFor();
+    const crew = await signIn('U-AST-01');
+    await crew.goto(`${base}/mission/guidance/`);
+    const card = crew.locator('section.finding-reading').filter({ hasText: message });
+    await card.getByRole('button', { name: 'Mark as read' }).click();
+    await card.getByText('Read by you', { exact: true }).waitFor();
+    await crew.setViewportSize({ width: 390, height: 844 });
+    await crew.waitForTimeout(500);
+    await crew.screenshot({ path: '/tmp/meridian-guidance-mobile.png', fullPage: true, animations: 'disabled' });
+    const overflow = await crew.evaluate(() => document.documentElement.scrollWidth > innerWidth);
+    // Restore the original displayed level while preserving the tested override history.
+    await medical.goto(findingURL);
+    await medical.locator('#override-level').selectOption('OBSERVE');
+    await medical.locator('#override-reason').fill('Synthetic browser check complete; restore assessed level.');
+    await medical.getByRole('button', { name: 'Save override', exact: true }).click();
+    assert.equal(overflow, false);
+    assert.deepEqual(errors, []);
+    console.log(JSON.stringify({ override: true, triageBranchPauseResume: true, groundDelivery: true, scopedGuidanceAcknowledgement: true, pageErrors: errors, mobileOverflow: overflow }));
+  } finally { await browser.close(); }
+})().catch(error => { console.error(error); process.exit(1); });
