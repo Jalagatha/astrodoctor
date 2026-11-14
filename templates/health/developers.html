@@ -1,0 +1,14 @@
+{% extends "health/base.html" %}
+{% block title %}Our developers · Astro-Doctor{% endblock %}
+{% block content %}
+<section class="mission-banner"><p class="eyebrow">BUILT BY PEOPLE, FOR PEOPLE</p><h1>The development team</h1><p>Meet the five developers behind Astro-Doctor. {{ developer_count }} of 5 profiles added.</p></section>
+<div class="crew-grid developer-grid">
+{% for slot in slots %}<article class="card crew-card">
+<div class="crew-card-cover"><span class="crew-badge">Developer {{ slot.number }} / 5</span></div>
+{% if slot.member %}{% with member=slot.member %}
+{% if member.photo %}<img class="crew-portrait" src="{% url 'developer_photo' slot.number %}" alt="Portrait of {{ member.full_name }}" width="112" height="112">{% else %}<div class="crew-portrait portrait-initials">{{ member.initials }}</div>{% endif %}
+<div class="crew-card-body"><p class="eyebrow">{{ member.role }}</p><h2>{{ member.full_name }}</h2><div class="muted profile-bio">{{ member.biography|linebreaks }}</div><div class="developer-links">{% if member.github %}<a href="{{ member.github }}" target="_blank" rel="noopener noreferrer">GitHub ↗</a>{% endif %}{% if member.website %}<a href="{{ member.website }}" target="_blank" rel="noopener noreferrer">Website ↗</a>{% endif %}{% if member.email %}<a href="mailto:{{ member.email }}">Email</a>{% endif %}</div><a class="button button-secondary" href="{% url 'developer_edit' slot.number %}">Edit profile</a></div>
+{% endwith %}{% else %}<div class="crew-portrait portrait-initials">+</div><div class="crew-card-body"><p class="eyebrow">YOUR TEAM</p><h2>Open team slot</h2><p class="muted">Add a developer’s portrait, role, bio, and links.</p><a class="button button-primary" href="{% url 'developer_edit' slot.number %}">Add developer</a></div>{% endif %}
+</article>{% endfor %}
+</div>
+{% endblock %}

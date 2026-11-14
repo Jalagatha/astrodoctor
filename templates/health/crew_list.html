@@ -1,0 +1,16 @@
+{% extends "health/base.html" %}
+{% block title %}Crew directory · Astro-Doctor{% endblock %}
+{% block content %}
+<section class="mission-banner"><p class="eyebrow">THE PEOPLE BEHIND THE MISSION</p><div class="section-heading"><div><h1>Astronauts & crew</h1><p>One team. Every member accounted for.</p></div><a class="button button-primary" href="{% url 'crew_create' %}">+ Add crew member</a></div></section>
+<div class="crew-grid">
+{% for member in crew %}
+<a class="card crew-card" href="{% url 'crew_detail' member.pk %}">
+  <div class="crew-card-cover"><span class="crew-badge">{{ member.get_status_display }}</span></div>
+  {% include "health/portrait.html" with member=member %}
+  <div class="crew-card-body"><p class="eyebrow">{{ member.role }}</p><h2>{{ member.full_name }}</h2><p class="muted">{% if member.call_sign %}“{{ member.call_sign }}” · {% endif %}{{ member.agency|default:"Agency not specified" }}</p><div class="crew-mission">{{ member.mission }}</div></div>
+</a>
+{% empty %}
+<section class="card empty-state"><h2>Build your mission team</h2><p class="muted">Add your astronauts and crew, upload portraits, and keep mission details together.</p><a class="button button-primary" href="{% url 'crew_create' %}">Create the first profile</a></section>
+{% endfor %}
+</div>
+{% endblock %}

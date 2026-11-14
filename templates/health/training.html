@@ -1,0 +1,3 @@
+{% extends "health/base.html" %}
+{% block title %}Train dataset · Astro-Doctor{% endblock %}
+{% block content %}<section class="card training-page">{% include "health/training_panel.html" %}<a class="back-link" href="{% url 'dashboard' %}">← Health dashboard</a></section>{% endblock %}

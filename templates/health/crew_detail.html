@@ -1,0 +1,11 @@
+{% extends "health/base.html" %}
+{% block title %}{{ member.full_name }} · Astro-Doctor{% endblock %}
+{% block content %}
+<a class="back-link" href="{% url 'crew_list' %}">← All crew members</a>
+<section class="mission-banner profile-banner"><span class="crew-badge">{{ member.get_status_display }}</span><p class="eyebrow">{{ member.mission }}</p><h1>{{ member.full_name }}</h1><p>{{ member.role }}{% if member.call_sign %} · “{{ member.call_sign }}”{% endif %}</p></section>
+<section class="card profile-detail">
+<div class="section-heading"><div class="profile-identity">{% include "health/portrait.html" %}<div><p class="eyebrow">MISSION PERSONNEL</p><h2>{{ member.full_name }}</h2><p class="muted">{{ member.agency|default:"Agency not specified" }}</p></div></div><a class="button button-primary" href="{% url 'crew_edit' member.pk %}">Edit profile</a></div>
+<dl class="profile-facts"><div><dt>Nationality</dt><dd>{{ member.nationality|default:"Not specified" }}</dd></div><div><dt>Mission</dt><dd>{{ member.mission }}</dd></div><div><dt>Mission start</dt><dd>{{ member.mission_start|date:"j M Y"|default:"Not specified" }}</dd></div><div><dt>Date of birth</dt><dd>{{ member.date_of_birth|date:"j M Y"|default:"Not specified" }}</dd></div><div><dt>Contact email</dt><dd>{{ member.email|default:"Not specified" }}</dd></div><div><dt>Last updated</dt><dd>{{ member.updated_at|date:"j M Y" }}</dd></div></dl>
+<h2>About</h2><div class="profile-bio muted">{{ member.biography|default:"No biography added yet."|linebreaks }}</div>
+</section>
+{% endblock %}

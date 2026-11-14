@@ -1,0 +1,8 @@
+{% extends "health/base.html" %}{% load static %}
+{% block title %}Offline mission view · Meridian{% endblock %}
+{% block content %}
+<div class="mission-honesty"><strong>SYNTHETIC · Cached demonstration data</strong> — Offline access uses the last-loaded local demo session. Reconnect to sign in or switch accounts.</div>
+<div class="mission-status"><strong id="mission-mode">Offline</strong><span id="mission-pending" role="status"></span><button type="button" class="button button-secondary" id="mission-sync">Sync</button><label><input type="checkbox" id="mission-ground-offline"> Simulate ground link offline</label></div>
+<div id="mission-feedback" role="status" class="mission-feedback"></div><div id="mission-app"><section class="card profile-detail"><h1>Loading cached mission view</h1><p>If no snapshot was loaded on this device, reconnect and open an astronaut overview first.</p></section></div>
+{% endblock %}
+

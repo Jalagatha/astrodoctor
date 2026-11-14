@@ -1,0 +1,22 @@
+{% extends "health/base.html" %}
+{% block title %}Offline check-in · Astro-Doctor{% endblock %}
+{% block content %}
+<section class="offline-page">
+  <div class="offline-symbol">↗</div>
+  <p class="eyebrow">OFFLINE MODE</p>
+  <h1>Connection unavailable</h1>
+  <p class="muted">Your dashboard needs a connection, but you can save a check-in on this device. It will sync when you reconnect and sign in again.</p>
+  <form id="checkin-form" class="card offline-checkin" data-endpoint="/check-in/">
+    <label>Mood (1–10)<input name="mood" type="number" min="1" max="10" value="7" required></label>
+    <label>Stress (1–10)<input name="stress" type="number" min="1" max="10" value="4" required></label>
+    <label>Sleep (hours)<input name="sleep_h" type="number" min="0" max="10" step="0.5" value="7" required></label>
+    <fieldset class="symptom-picker"><legend>Symptoms (optional)</legend>
+      {% for symptom in symptoms %}<label class="symptom-option"><input type="checkbox" name="symptoms" value="{{ symptom }}"><span>{{ symptom }}</span></label>{% endfor %}
+    </fieldset>
+    <button class="button button-primary" type="submit">Save offline check-in</button>
+    <span id="checkin-status" class="form-status" role="status"></span>
+  </form>
+  <a class="back-link" href="/">Try reconnecting to the dashboard →</a>
+</section>
+{% endblock %}
+{% block scripts %}{% load static %}<script src="{% static 'health/app.js' %}" defer></script>{% endblock %}

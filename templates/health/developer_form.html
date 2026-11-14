@@ -1,0 +1,9 @@
+{% extends "health/base.html" %}
+{% block title %}Edit developer · Astro-Doctor{% endblock %}
+{% block content %}
+<div class="page-heading"><div><p class="eyebrow">DEVELOPER {{ slot }} OF 5</p><h1>{% if member %}Edit {{ member.full_name }}{% else %}Add a developer{% endif %}</h1><p class="muted">Introduce the person behind the work.</p></div></div>
+<form method="post" enctype="multipart/form-data" class="card profile-form">{% csrf_token %}{{ form.non_field_errors }}<div class="profile-fields">
+{% for field in form %}<div class="profile-field {% if field.name == 'biography' or field.name == 'photo' %}field-wide{% endif %}"><label for="{{ field.id_for_label }}">{{ field.label }}{% if field.field.required %} *{% endif %}</label>
+{% if field.name == 'photo' %}{% if member.photo %}<img class="crew-portrait" src="{% url 'developer_photo' slot %}" alt="Current portrait"><label><input type="checkbox" name="photo-clear"> Remove current portrait</label>{% endif %}<input type="file" name="photo" id="id_photo" accept="image/jpeg,image/png,image/webp"><p class="fine-print">JPEG, PNG, or WebP · up to 5 MB and 20 megapixels.</p>{% else %}{{ field }}{% endif %}{{ field.errors }}</div>{% endfor %}
+</div><div class="checkin-actions"><button type="submit" class="button button-primary">Save developer</button><a class="button button-secondary" href="{% url 'developer_team' %}">Cancel</a></div></form>
+{% endblock %}

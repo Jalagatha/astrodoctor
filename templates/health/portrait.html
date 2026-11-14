@@ -1,0 +1,1 @@
+{% if member.photo %}<img class="crew-portrait" src="{% url 'crew_photo' member.pk %}" alt="Portrait of {{ member.full_name }}" width="112" height="112">{% else %}<div class="crew-portrait portrait-initials" aria-label="No portrait uploaded">{{ member.initials }}</div>{% endif %}

@@ -1,0 +1,55 @@
+{% load static %}
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#103b46">
+  <meta name="description" content="Astronaut health monitoring and daily check-ins">
+  <link rel="manifest" href="{% url 'manifest' %}">
+  <link rel="icon" href="{% static 'health/icon.svg' %}" type="image/svg+xml">
+  <link rel="stylesheet" href="{% static 'health/app.css' %}">
+  <script src="{% static 'health/ui.js' %}" defer></script>
+  <script src="{% static 'health/camera.js' %}" defer></script>
+  <script src="{% static 'health/meridian.js' %}" defer></script>
+  <title>{% block title %}Astro-Doctor{% endblock %}</title>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="{% url 'dashboard' %}">
+      <img src="{% static 'health/icon.svg' %}" alt="">
+      <span>Meridian<span class="brand-light"> · Crew health</span></span>
+    </a>
+    {% if request.user.is_authenticated and not offline_shell %}
+    <div class="topbar-right">
+      <nav class="main-nav" aria-label="Main navigation"><a href="{% url 'dashboard' %}">Health</a>{% if request.user.is_staff %}<a href="{% url 'crew_list' %}">Profiles</a>{% endif %}</nav>
+
+      <form method="post" action="{% url 'logout' %}">{% csrf_token %}<button class="button button-quiet" type="submit">Sign out</button></form>
+      <a class="account-avatar" href="{% url 'my_profile' %}" aria-label="Edit your profile" title="Your profile · {{ request.user.username }}">
+        {% if request.user.personal_profile.photo %}<img src="{% url 'my_profile_photo' %}" alt="Your profile photo" width="38" height="38">{% else %}<span>{% if request.user.personal_profile %}{{ request.user.personal_profile.initials }}{% else %}{{ request.user.username|first|upper }}{% endif %}</span>{% endif %}
+      </a>
+    </div>
+    {% endif %}
+  </header>
+  <main class="page">
+    {% if messages %}
+      <div class="messages" role="status">
+        {% for message in messages %}<div class="message message-{{ message.tags }}">{{ message }}</div>{% endfor %}
+      </div>
+    {% endif %}
+    {% block content %}{% endblock %}
+  </main>
+  <footer class="footer site-footer">
+    <div class="footer-content"><div><strong>Meridian · Astro-Doctor</strong><p>Crew wellbeing. Mission by mission.</p></div>
+    <nav aria-label="Footer navigation"><a href="{% url 'dashboard' %}">Health dashboard</a><a href="{% url 'mission_home' %}">Mission crew</a><a href="{% url 'developer_team' %}">Meet the developers</a></nav>
+    <div class="appearance-controls"><label for="appearance-theme">Appearance</label><select id="appearance-theme"><option value="light">Light panels</option><option value="dark">Dark panels</option></select><label for="appearance-background">Background</label><select id="appearance-background"><option>Orbits</option><option>Waves</option><option>Rosette</option><option>Voronoi</option><option>Code</option><option>Fiduciaries</option></select></div></div>
+    <div class="footer-bottom"><span>© {% now "Y" %} Astro-Doctor · Decision support only. Not a substitute for the Crew Medical Officer or flight surgeon.</span><span id="connection-status" role="status"></span><button class="button button-quiet" id="back-to-top" type="button" hidden>Back to top ↑</button></div>
+  </footer>
+  <script>
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => navigator.serviceWorker.register("{% url 'service_worker' %}"));
+    }
+  </script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

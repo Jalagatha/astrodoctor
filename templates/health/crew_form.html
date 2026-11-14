@@ -1,0 +1,12 @@
+{% extends "health/base.html" %}
+{% block title %}Crew profile · Astro-Doctor{% endblock %}
+{% block content %}
+<div class="page-heading"><div><p class="eyebrow">CREW PERSONNEL</p><h1>{% if member %}Edit {{ member.full_name }}{% else %}New crew member{% endif %}</h1><p class="muted">Add a portrait and the details that introduce your crew member.</p></div></div>
+<form method="post" enctype="multipart/form-data" class="card profile-form">
+{% csrf_token %}
+{{ form.non_field_errors }}
+<div class="profile-fields">
+{% for field in form %}<div class="profile-field {% if field.name == 'biography' or field.name == 'photo' %}field-wide{% endif %}"><label for="{{ field.id_for_label }}">{{ field.label }}{% if field.field.required %} <span aria-hidden="true">*</span>{% endif %}</label>{% if field.name == 'photo' %}{% if member.photo %}<div class="profile-current-photo">{% include "health/portrait.html" %}<label><input type="checkbox" name="photo-clear" id="photo-clear_id"> Remove current portrait</label></div>{% endif %}<input type="file" name="photo" id="id_photo" accept="image/jpeg,image/png,image/webp">{% else %}{{ field }}{% endif %}{{ field.errors }}{% if field.name == 'photo' %}<p class="fine-print">JPEG, PNG, or WebP · up to 5 MB and 20 megapixels. Portraits are resized and image metadata is removed.</p>{% endif %}</div>{% endfor %}
+</div><div class="checkin-actions"><button type="submit" class="button button-primary">Save profile</button><a class="button button-secondary" href="{% if member %}{% url 'crew_detail' member.pk %}{% else %}{% url 'crew_list' %}{% endif %}">Cancel</a></div>
+</form>
+{% endblock %}
