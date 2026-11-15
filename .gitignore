@@ -4,7 +4,7 @@ __pycache__/
 *.py[cod]
 staticfiles/
 *.log
-media/
+
 *.sqlite3
 # Trained model artefacts are rebuilt with `manage.py train_recommender`.
 ml_models/*.joblib
