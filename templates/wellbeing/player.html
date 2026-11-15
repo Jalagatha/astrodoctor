@@ -1,0 +1,46 @@
+{% extends "health/base.html" %}
+{% load static %}
+{% block title %}In session · Astro-Doctor{% endblock %}
+{% block content %}
+{% with scene=session.scene_info %}
+<section class="wb-stage is-animated" data-session-timer data-remaining="{{ remaining_seconds }}" data-total="{{ session.planned_minutes }}" data-ambience="{% static 'wellbeing/audio/'|add:scene.key|add:'.mp3' %}">
+  <div class="wb-stage-art">{% include "wellbeing/_art.html" with key=scene.key %}</div>
+  <canvas class="wb-stage-canvas" data-vr3d data-scene="{{ scene.key }}" data-breathing="{% if scene.arousal == 'low' %}true{% else %}false{% endif %}" tabindex="0" role="img" aria-label="Interactive 3D scene: {{ scene.title }}. Drag or use the arrow keys to look around." hidden></canvas>
+  <div class="wb-stage-veil"></div>
+  <button class="wb-sound-prompt" type="button" data-sound-prompt data-sound-control hidden>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/></svg>
+    Tap to play the {{ scene.theme|lower }} soundscape
+  </button>
+  <div class="wb-stage-tools">
+    <span class="wb-look-hint" aria-hidden="true">Drag to look around</span>
+    <div class="wb-sound" data-sound-control>
+      <label class="wb-volume"><span class="sr-only">Soundscape volume</span><input type="range" min="0" max="1" step="0.05" value="0.7" data-sound-volume></label>
+      <button class="wb-tool" type="button" data-sound-toggle aria-pressed="true" aria-label="Turn sound off" title="Sound on">
+        <svg class="wb-icon-on" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/></svg>
+        <svg class="wb-icon-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="m16 9 6 6M22 9l-6 6"/></svg>
+      </button>
+    </div>
+    <button class="wb-tool" type="button" data-fullscreen aria-label="Full screen" title="Full screen">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>
+    </button>
+  </div>
+  <div class="wb-stage-content">
+    <div class="wb-stage-heading">
+      <p class="eyebrow">VR session · {{ scene.theme }}</p>
+      <h1>{{ scene.title }}</h1>
+    </div>
+    <div class="wb-timer-ring{% if scene.arousal == 'low' %} is-breathing{% endif %}">
+      <svg viewBox="0 0 120 120" aria-hidden="true"><circle class="wb-ring-track" cx="60" cy="60" r="54"/><circle class="wb-ring-progress" cx="60" cy="60" r="54" pathLength="100" data-timer-ring/></svg>
+      <div class="wb-timer-text"><b data-timer-display aria-live="off">{% widthratio remaining_seconds 60 1 %}:00</b><small>{{ session.planned_minutes }}-minute session</small></div>
+    </div>
+    <p class="wb-stage-note" data-timer-note>{% if scene.arousal == "low" %}Follow the glow: breathe in as it grows, out as it fades.{% else %}{{ scene.summary }}{% endif %}</p>
+    <form method="post" action="{% url 'wellbeing_session_end' session.pk %}">
+      {% csrf_token %}
+      <button class="button button-primary button-lg" type="submit" data-timer-end>End session &amp; re-check →</button>
+    </form>
+  </div>
+</section>
+<p class="fine-print wb-center">Sit comfortably and let the scene play. Use the speaker button to turn the soundscape on or off. Drag, swipe or use the arrow keys to look around; the view never moves on its own. You can end early whenever you need to.</p>
+{% endwith %}
+{% endblock %}
+{% block scripts %}<script type="module" src="{% static 'wellbeing/vr3d.js' %}"></script><script src="{% static 'wellbeing/ambience.js' %}" defer></script>{% endblock %}

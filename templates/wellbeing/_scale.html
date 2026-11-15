@@ -1,0 +1,12 @@
+<fieldset class="wb-q{% if field.errors %} wb-has-error{% endif %}" data-question data-polarity="{{ polarity|default:'positive' }}">
+  <legend class="wb-q-head"><span class="wb-q-title">{{ field.label }}</span>{% if hint %}<span class="wb-q-hint">{{ hint }}</span>{% endif %}</legend>
+  <div class="wb-scale-options">
+    {% for choice in field %}
+    <label class="wb-tile">
+      {{ choice.tag }}
+      <span class="wb-tile-face"><b>{{ choice.data.value }}</b><small>{{ choice.choice_label|slice:"4:" }}</small>{% if before and choice.data.value == before %}<em class="wb-before">before</em>{% endif %}</span>
+    </label>
+    {% endfor %}
+  </div>
+  {% if field.errors %}<p class="wb-error">{{ field.errors|join:" " }}</p>{% endif %}
+</fieldset>

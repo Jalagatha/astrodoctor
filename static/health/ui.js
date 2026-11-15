@@ -1,36 +1,31 @@
 (() => {
   "use strict";
   // Only appearance preferences live in localStorage. Personnel data stays on the server.
-  const backgrounds = ["Orbits", "Waves", "Rosette", "Voronoi", "Code", "Fiduciaries"];
   const key = "astrodoctor-ui-v1";
-  let preferences = { theme: "dark", background: "Orbits" };
+  const themes = ["light", "dark"];
+  let theme = "dark";
   try {
     const saved = JSON.parse(localStorage.getItem(key) || "{}");
-    if (["light", "dark"].includes(saved.theme)) preferences.theme = saved.theme;
-    if (backgrounds.includes(saved.background)) preferences.background = saved.background;
+    if (themes.includes(saved.theme)) theme = saved.theme;
   } catch { /* Storage can be unavailable on private or restricted devices. */ }
   function apply() {
-    document.documentElement.dataset.theme = preferences.theme;
-    document.body.dataset.background = preferences.background;
-    try { localStorage.setItem(key, JSON.stringify(preferences)); } catch { /* Session-only preferences still work. */ }
+    document.documentElement.dataset.theme = theme;
+    try { localStorage.setItem(key, JSON.stringify({ theme })); } catch { /* Session-only preferences still work. */ }
   }
   apply();
-  for (const name of ["theme", "background"]) {
-    const control = document.getElementById(`appearance-${name}`);
-    if (!control) continue;
-    control.value = preferences[name];
-    control.addEventListener("change", () => { preferences = { ...preferences, [name]: control.value }; apply(); });
+  const themeControl = document.getElementById("appearance-theme");
+  if (themeControl) {
+    themeControl.value = theme;
+    themeControl.addEventListener("change", () => { theme = themeControl.value; apply(); });
   }
   window.addEventListener("storage", (event) => {
     if (event.key !== key) return;
     try {
       const saved = JSON.parse(event.newValue);
-      if (!["light", "dark"].includes(saved?.theme) || !backgrounds.includes(saved?.background)) return;
-      preferences = saved;
-      document.documentElement.dataset.theme = saved.theme;
-      document.body.dataset.background = saved.background;
-      document.getElementById("appearance-theme").value = saved.theme;
-      document.getElementById("appearance-background").value = saved.background;
+      if (!themes.includes(saved?.theme)) return;
+      theme = saved.theme;
+      document.documentElement.dataset.theme = theme;
+      if (themeControl) themeControl.value = theme;
     } catch { /* Ignore invalid settings from other tabs. */ }
   });
   document.querySelectorAll(".main-nav a, .site-footer nav a").forEach((link) => {
@@ -38,7 +33,7 @@
     if (location.pathname === path || (path !== "/" && location.pathname.startsWith(path))) link.setAttribute("aria-current", "page");
   });
   const connection = document.getElementById("connection-status");
-  const updateConnection = () => { if (connection) { connection.textContent = navigator.onLine ? "● Online" : "○ Offline · check-ins save on device"; connection.dataset.online = String(navigator.onLine); } };
+  const updateConnection = () => { if (connection) { connection.textContent = navigator.onLine ? "● Online" : "○ Offline · reconnect to check in"; connection.dataset.online = String(navigator.onLine); } };
   updateConnection();
   window.addEventListener("online", updateConnection);
   window.addEventListener("offline", updateConnection);
@@ -75,37 +70,6 @@
     input.addEventListener("input", filter);
     filter();
   }
-  const trainingDialog = document.getElementById("training-dialog");
-  if (trainingDialog && typeof trainingDialog.showModal === "function") {
-    const opener = document.querySelector("[data-open-training]");
-    opener?.addEventListener("click", (event) => {
-      event.preventDefault();
-      trainingDialog.showModal();
-    });
-    trainingDialog.querySelector("[data-close-training]").addEventListener("click", () => trainingDialog.close());
-  }
-  document.querySelectorAll("form.training-form").forEach((form) => {
-    const input = form.querySelector('[name="baseline_rows"]');
-    const hint = form.querySelector("#training-split");
-    const total = Number(input.max) + 7;
-    input.addEventListener("input", () => {
-      if (input.validity.valid) hint.textContent = `${input.value} baseline rows · ${total - Number(input.value)} later evaluation rows. Saving applies the baseline to both dashboards.`;
-    });
-    form.addEventListener("submit", () => {
-      const button = form.querySelector('[type="submit"]');
-      button.disabled = true;
-      button.textContent = "Training…";
-      form.setAttribute("aria-busy", "true");
-      form.querySelector("[data-training-status]").textContent = "Fitting baseline and evaluating later rows…";
-    });
-    window.addEventListener("pageshow", () => {
-      const button = form.querySelector('[type="submit"]');
-      button.disabled = false;
-      button.textContent = "Train & apply baseline";
-      form.removeAttribute("aria-busy");
-      form.querySelector("[data-training-status]").textContent = "";
-    });
-  });
   document.querySelectorAll("form.profile-form").forEach((form) => {
     let dirty = false;
     let submitting = false;

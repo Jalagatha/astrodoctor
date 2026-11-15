@@ -1,6 +1,0 @@
-<form method="post" action="{% url 'mission_override' finding.pk %}" class="workflow-form">
-{% csrf_token %}<input type="hidden" name="client_id" value="{{ client_id }}">
-<label for="override-level">Displayed level</label><select id="override-level" name="level" required>{% for level in override_levels %}<option value="{{ level }}" {% if level == displayed_level %}selected{% endif %}>{{ level }}</option>{% endfor %}</select>
-<label for="override-reason">Reason for this override</label><textarea id="override-reason" name="reason" maxlength="2000" required>{{ reason }}</textarea>
-<button class="button button-primary" type="submit">Save override</button>
-</form>

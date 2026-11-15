@@ -1,0 +1,131 @@
+{% extends "health/base.html" %}
+{% block title %}Recommender model · Astro-Doctor{% endblock %}
+{% block content %}
+<div class="page-heading"><div><p class="eyebrow">ADAPTIVE ENGINE</p><h1>Scene recommender</h1><p class="muted">Population model trained on synthetic data, then personalised with each astronaut's re-checks.</p></div>
+{% if card %}<div class="mission-chip">{{ card.version }}</div>{% endif %}</div>
+
+{% if active_job %}
+<section class="card wb-job-banner" data-job-active role="status">
+  <span class="wb-spinner" aria-hidden="true"></span>
+  <div><h2>{{ active_job.get_kind_display }} in progress</h2>
+  <p class="muted">Started {{ active_job.created_at|timesince }} ago{% if active_job.created_by %} by {{ active_job.created_by }}{% endif %}. Training usually takes under a minute. This page refreshes itself.</p></div>
+</section>
+{% endif %}
+
+<section class="wb-manage" aria-label="Manage dataset and model">
+  <article class="card wb-section">
+    <p class="eyebrow">STEP A · DATASET</p>
+    <h2>Synthetic dataset</h2>
+    {% if dataset %}
+    <p class="muted">{{ dataset.rows }} sessions from {{ dataset.astronauts }} astronauts over {{ dataset.days }} mission days · {{ dataset.size_kb }} KB · updated {{ dataset.modified|date:"j M Y, H:i" }}</p>
+    <p><a class="button button-secondary" href="{% url 'wellbeing_dataset_download' %}">Download CSV</a></p>
+    {% else %}
+    <p class="muted">No dataset yet. Generate one to train the model.</p>
+    {% endif %}
+    <form method="post" action="{% url 'wellbeing_model_generate' %}" class="wb-admin-form">
+      {% csrf_token %}
+      <div class="wb-admin-fields">
+        {% for field in generate_form %}
+        <div class="wb-field">
+          <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+          {{ field }}
+          {% if field.errors %}<p class="wb-error">{{ field.errors|join:" " }}</p>{% endif %}
+        </div>
+        {% endfor %}
+      </div>
+      <p class="fine-print">{{ generate_form.seed.help_text }} Generating replaces the current dataset file.</p>
+      <button class="button button-primary" type="submit" {% if active_job %}disabled{% endif %}>Generate dataset</button>
+    </form>
+  </article>
+
+  <article class="card wb-section">
+    <p class="eyebrow">STEP B · MODEL</p>
+    <h2>Train model</h2>
+    <p class="muted">Trains on 80% of astronauts, tests on the rest, then saves a model trained on all of them. The app uses the new model at the next recommendation.</p>
+    <form method="post" action="{% url 'wellbeing_model_train' %}" enctype="multipart/form-data" class="wb-admin-form">
+      {% csrf_token %}
+      <fieldset class="wb-scale">
+        <legend>{{ train_form.source.label }}</legend>
+        <div class="wb-pill-options">
+          {% for choice in train_form.source %}<label class="wb-pill">{{ choice.tag }}<span>{{ choice.choice_label }}</span></label>{% endfor %}
+        </div>
+        {% if train_form.source.errors %}<p class="wb-error">{{ train_form.source.errors|join:" " }}</p>{% endif %}
+      </fieldset>
+      <div class="wb-field">
+        <label for="{{ train_form.upload.id_for_label }}">{{ train_form.upload.label }} <span class="muted">(only for “Upload a CSV”)</span></label>
+        {{ train_form.upload }}
+        {% if train_form.upload.errors %}<p class="wb-error">{{ train_form.upload.errors|join:" " }}</p>{% endif %}
+        <p class="fine-print">Required columns: astronaut_id, mood, energy, stress, homesickness, sleep_hours, mission_phase, time_block, scene, gain. Optional oracle_&lt;scene&gt; columns enable the policy scores.</p>
+      </div>
+      <label class="wb-check">{{ train_form.include_sessions }} {{ train_form.include_sessions.label }} <span class="muted">({{ recorded_sessions }} available)</span></label>
+      <button class="button button-primary" type="submit" {% if active_job %}disabled{% endif %}>Train model</button>
+    </form>
+  </article>
+</section>
+
+{% if jobs %}
+<section class="card wb-section">
+  <div class="section-heading"><div><p class="eyebrow">HISTORY</p><h2>Recent runs</h2></div></div>
+  <div class="wb-table-wrap"><table class="wb-table">
+    <thead><tr><th>Started</th><th>Action</th><th>Status</th><th>By</th><th>Details</th></tr></thead>
+    <tbody>
+    {% for job in jobs %}
+    <tr>
+      <td>{{ job.created_at|date:"j M, H:i" }}</td>
+      <td>{{ job.get_kind_display }}</td>
+      <td><span class="wb-status wb-status-{{ job.status }}">{{ job.get_status_display }}</span>{% if job.duration_seconds is not None %} <span class="muted">{{ job.duration_seconds }} s</span>{% endif %}</td>
+      <td>{{ job.created_by|default:"–" }}</td>
+      <td class="wb-job-detail">
+        {% if job.status == "failed" %}<span class="wb-error">{{ job.error }}</span>
+        {% elif job.status == "succeeded" and job.kind == "generate" %}{{ job.result.rows }} sessions · {{ job.result.astronauts }} astronauts · seed {{ job.params.seed }}
+        {% elif job.status == "succeeded" %}{{ job.result.version }} · {{ job.params.source }}{% if job.params.include_sessions %} + {{ job.result.data.real_session_rows_added }} recorded{% endif %} · RMSE {{ job.result.prediction.rmse_model }}{% if job.result.policy %} · gain {{ job.result.policy.expected_gain_model }} vs random {{ job.result.policy.expected_gain_random }}{% endif %}
+        {% else %}{% if job.kind == "train" %}{{ job.params.source }}{% else %}{{ job.params.astronauts }} astronauts · {{ job.params.days }} days{% endif %}{% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+</section>
+{% endif %}
+
+{% if model_error %}
+<section class="card wb-notice"><h2>No trained model</h2><p class="muted">{{ model_error }}</p></section>
+{% else %}
+{% if card.policy %}
+<section class="metric-grid wb-metrics">
+  <article class="card"><div class="card-label">Expected gain · model picks</div><div class="wb-big">{{ card.policy.expected_gain_model|floatformat:2 }}</div><p class="fine-print">Random scene {{ card.policy.expected_gain_random|floatformat:2 }} · best single scene ({{ card.policy.best_single_scene }}) {{ card.policy.expected_gain_best_single_scene|floatformat:2 }}</p></article>
+  <article class="card"><div class="card-label">Achievable uplift captured</div><div class="wb-big">{% widthratio card.policy.share_of_achievable_uplift_over_random 1 100 %}%</div><p class="fine-print">Of the gap between random choice and a perfect oracle that knows each person's taste.</p></article>
+  <article class="card"><div class="card-label">Prediction error (RMSE)</div><div class="wb-big">{{ card.prediction.rmse_model|floatformat:2 }}</div><p class="fine-print">Scene-average baseline {{ card.prediction.rmse_scene_mean_baseline|floatformat:2 }} · R² {{ card.prediction.r2_model|floatformat:2 }}</p></article>
+</section>
+<section class="card wb-section">
+  <h2>Personalisation (simulated)</h2>
+  <p class="muted">{{ card.personalisation_simulation.astronauts }} held-out synthetic astronauts replay {{ card.personalisation_simulation.sessions }} sessions in order. Mean expected gain:</p>
+  <div class="wb-table-wrap"><table class="wb-table">
+    <thead><tr><th>Policy</th><th>All sessions</th><th>Second half</th></tr></thead>
+    <tbody>
+      <tr><td>Population model only</td><td>{{ card.personalisation_simulation.mean_expected_gain_all_sessions.population_only }}</td><td>{{ card.personalisation_simulation.mean_expected_gain_second_half.population_only }}</td></tr>
+      <tr><td>Population + personal bandit</td><td>{{ card.personalisation_simulation.mean_expected_gain_all_sessions.population_plus_bandit }}</td><td>{{ card.personalisation_simulation.mean_expected_gain_second_half.population_plus_bandit }}</td></tr>
+      <tr><td>Oracle (upper bound)</td><td>{{ card.personalisation_simulation.mean_expected_gain_all_sessions.oracle }}</td><td>{{ card.personalisation_simulation.mean_expected_gain_second_half.oracle }}</td></tr>
+    </tbody>
+  </table></div>
+</section>
+{% else %}
+<section class="metric-grid wb-metrics">
+  <article class="card"><div class="card-label">Prediction error (RMSE)</div><div class="wb-big">{{ card.prediction.rmse_model|floatformat:2 }}</div><p class="fine-print">Scene-average baseline {{ card.prediction.rmse_scene_mean_baseline|floatformat:2 }}</p></article>
+  <article class="card"><div class="card-label">R²</div><div class="wb-big">{{ card.prediction.r2_model|floatformat:2 }}</div><p class="fine-print">Baseline {{ card.prediction.r2_scene_mean_baseline|floatformat:2 }}</p></article>
+  <article class="card"><div class="card-label">Policy scores</div><div class="wb-big">–</div><p class="fine-print">Need oracle_&lt;scene&gt; columns, which only the synthetic generator provides.</p></article>
+</section>
+{% endif %}
+<section class="card wb-section">
+  <h2>Training data of the active model</h2>
+  <p class="muted">{{ card.data.rows }} rows from {{ card.data.astronauts }} astronauts ({{ card.data.test_astronauts }} held out for testing). {{ card.data.real_session_rows_added }} recorded sessions were added to training. {{ recorded_sessions }} completed re-check{{ recorded_sessions|pluralize }} are now in the database.</p>
+  <p class="fine-print">Target: {{ card.target }}. Algorithm: {{ card.algorithm }}. Trained {{ card.trained_at }} with scikit-learn {{ card.sklearn_version }}.</p>
+  <p class="fine-print">Synthetic data encodes prototype assumptions, not spaceflight evidence. These figures show the pipeline works; they are not evidence of real-world benefit.</p>
+</section>
+{% endif %}
+{% endblock %}
+{% block scripts %}
+<script>
+  if (document.querySelector("[data-job-active]")) setTimeout(() => location.reload(), 4000);
+</script>
+{% endblock %}

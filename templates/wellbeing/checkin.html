@@ -1,0 +1,44 @@
+{% extends "health/base.html" %}
+{% block title %}Check-in · Astro-Doctor{% endblock %}
+{% block content %}
+<div class="page-heading wb-narrow"><div><p class="eyebrow">Step 1 · Check-in</p><h1>How are you right now?</h1><p class="muted">Answer for this moment. There are no wrong answers, and only you can see them.</p></div></div>
+<div class="wb-narrow">
+{% include "wellbeing/_flow.html" with step=1 %}
+{% if model_error %}<div class="wb-notice"><b>Recommendations are offline.</b> <span class="muted">{{ model_error }}</span></div>{% endif %}
+<form method="post" class="wb-form" data-progress-form novalidate>
+  {% csrf_token %}
+  {% if form.non_field_errors %}<div class="message message-error">{{ form.non_field_errors|join:" " }}</div>{% endif %}
+  <div class="card wb-q-card">
+    {% include "wellbeing/_scale.html" with field=form.mood hint="Overall, how do you feel?" %}
+    {% include "wellbeing/_scale.html" with field=form.energy hint="Physical and mental energy" %}
+    {% include "wellbeing/_scale.html" with field=form.stress polarity="negative" hint="Pressure, worry or tension" %}
+    {% include "wellbeing/_scale.html" with field=form.homesickness polarity="negative" hint="Missing family, friends or Earth" %}
+  </div>
+  <div class="card wb-q-card">
+    <div class="wb-q" data-question="always">
+      <div class="wb-q-head"><label class="wb-q-title" for="id_sleep_hours">{{ form.sleep_hours.label }}</label><span class="wb-range-value"><b id="sleep-output">{{ form.sleep_hours.value|default:"7" }}</b> h</span></div>
+      <input class="wb-range" type="range" id="id_sleep_hours" name="sleep_hours" min="0" max="12" step="0.5" value="{{ form.sleep_hours.value|default:'7' }}" data-range-output="sleep-output">
+      <div class="wb-range-scale" aria-hidden="true"><span>0 h</span><span>4</span><span>8</span><span>12 h</span></div>
+      {% if form.sleep_hours.errors %}<p class="wb-error">{{ form.sleep_hours.errors|join:" " }}</p>{% endif %}
+    </div>
+    <fieldset class="wb-q{% if form.time_block.errors %} wb-has-error{% endif %}" data-question>
+      <legend class="wb-q-head"><span class="wb-q-title">{{ form.time_block.label }}</span><span class="wb-q-hint">Pre-selected from UTC time</span></legend>
+      <div class="wb-segments">
+        {% for choice in form.time_block %}<label class="wb-segment">{{ choice.tag }}<span>{{ choice.choice_label }}</span></label>{% endfor %}
+      </div>
+      {% if form.time_block.errors %}<p class="wb-error">{{ form.time_block.errors|join:" " }}</p>{% endif %}
+    </fieldset>
+    <div class="wb-q wb-q-inline" data-question="always">
+      <label class="wb-q-title" for="{{ form.mission_day.id_for_label }}">{{ form.mission_day.label }}</label>
+      <div class="wb-field">{{ form.mission_day }}</div>
+      {% if form.mission_day.errors %}<p class="wb-error">{{ form.mission_day.errors|join:" " }}</p>{% endif %}
+    </div>
+  </div>
+  <div class="wb-submit-bar">
+    <div class="wb-progress-wrap"><span class="wb-progress-label" data-progress-label>Answer each question</span><div class="wb-progress"><i data-progress-bar></i></div></div>
+    <a class="button button-quiet" href="{% url 'home' %}">Cancel</a>
+    <button class="button button-primary button-lg" type="submit" {% if model_error %}disabled{% endif %}>Find my world →</button>
+  </div>
+</form>
+</div>
+{% endblock %}

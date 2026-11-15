@@ -1,0 +1,77 @@
+{
+  "data": {
+    "rows": 5415,
+    "astronauts": 60,
+    "train_rows": 4329,
+    "test_rows": 1086,
+    "test_astronauts": 12,
+    "real_session_rows_added": 0,
+    "gain_mean": 0.222,
+    "gain_sd": 0.791
+  },
+  "prediction": {
+    "rmse_model": 0.763,
+    "rmse_scene_mean_baseline": 0.81,
+    "mae_model": 0.607,
+    "r2_model": 0.104,
+    "r2_scene_mean_baseline": -0.009
+  },
+  "policy": {
+    "expected_gain_random": 0.347,
+    "expected_gain_best_single_scene": 0.427,
+    "best_single_scene": "calm",
+    "expected_gain_model": 0.581,
+    "expected_gain_oracle_population_plus_personal": 0.812,
+    "share_of_achievable_uplift_over_random": 0.502,
+    "top1_agreement_with_oracle": 0.431,
+    "ips_estimated_gain_model_from_logged_outcomes": 0.569,
+    "logged_mean_gain_random_policy": 0.306,
+    "pick_distribution": {
+      "family": 0.11,
+      "nature": 0.027,
+      "learning": 0.282,
+      "active": 0.109,
+      "calm": 0.473
+    }
+  },
+  "personalisation_simulation": {
+    "astronauts": 12,
+    "sessions": 1086,
+    "mean_expected_gain_all_sessions": {
+      "population_only": 0.581,
+      "population_plus_bandit": 0.645,
+      "oracle": 0.812
+    },
+    "mean_expected_gain_second_half": {
+      "population_only": 0.614,
+      "population_plus_bandit": 0.739,
+      "oracle": 0.865
+    }
+  },
+  "version": "scene-rec-20261115-155019",
+  "trained_at": "2026-11-15T15:50:19+00:00",
+  "algorithm": "HistGradientBoostingRegressor (scikit-learn) on context + one-hot scene; personal layer: Normal\u2013Normal Thompson sampling on residuals",
+  "sklearn_version": "1.9.1",
+  "features": [
+    "mood",
+    "energy",
+    "stress",
+    "homesickness",
+    "sleep_hours",
+    "phase_adaptation",
+    "phase_routine",
+    "phase_late",
+    "time_morning",
+    "time_work",
+    "time_evening",
+    "time_pre_sleep",
+    "scene_family",
+    "scene_nature",
+    "scene_learning",
+    "scene_active",
+    "scene_calm"
+  ],
+  "target": "wellbeing gain = (mood after \u2212 mood before) + 0.5 \u00d7 (stress before \u2212 stress after)",
+  "residual_sd": 0.761,
+  "boosting_iterations": 209
+}

@@ -1,12 +1,81 @@
 {% extends "health/base.html" %}
+{% load wellbeing_tags %}
 {% block title %}My profile · Astro-Doctor{% endblock %}
 {% block content %}
-<section class="mission-banner"><p class="eyebrow">YOUR ACCOUNT</p><h1>My profile</h1><p>Signed in as {{ request.user.username }}. Your photo and details are optional — update them any time from your avatar.</p></section>
-<form method="post" enctype="multipart/form-data" class="card profile-form">
-{% csrf_token %}{{ form.non_field_errors }}
-<div class="profile-fields">
-{% for field in form %}<div class="profile-field {% if field.name == 'photo' or field.name == 'biography' %}field-wide{% endif %}"><label for="{{ field.id_for_label }}">{{ field.label }} <span class="fine-print">(optional)</span></label>
-{% if field.name == 'photo' %}{% if profile.photo %}<img class="crew-portrait" src="{% url 'my_profile_photo' %}" alt="Your current portrait"><label><input type="checkbox" name="photo-clear"> Remove current photo</label>{% endif %}<input type="file" name="photo" id="id_photo" accept="image/jpeg,image/png,image/webp"><p class="fine-print">Upload a file or take a photo. JPEG, PNG, or WebP · up to 5 MB and 20 megapixels. You can leave this empty and add a photo later.</p>{% else %}{{ field }}{% endif %}{{ field.errors }}</div>{% endfor %}
-</div><div class="checkin-actions"><button type="submit" class="button button-primary">Save my profile</button></div>
+<form method="post" enctype="multipart/form-data" class="profile-form pf" novalidate>
+  {% csrf_token %}
+  {% if form.non_field_errors %}<div class="message message-error">{{ form.non_field_errors|join:" " }}</div>{% endif %}
+
+  <section class="pf-hero">
+    <div class="pf-cover is-animated" aria-hidden="true">{% include "wellbeing/_art.html" with key=summary.favourite.key|default:"calm" %}</div>
+    <div class="pf-identity">
+      <div class="pf-avatar" data-avatar>
+        <img data-avatar-img {% if profile.photo %}src="{% url 'my_profile_photo' %}" alt="Your current profile photo"{% else %}alt="" hidden{% endif %}>
+        <span data-avatar-initials {% if profile.photo %}hidden{% endif %}>{% if profile %}{{ profile.initials }}{% else %}{{ request.user.username|first|upper }}{% endif %}</span>
+      </div>
+      <div class="pf-name">
+        <p class="eyebrow">My profile · crew ID</p>
+        <h1 data-live="id_display_name" data-fallback="{{ first_name }}">{{ profile.display_name|default:first_name }}</h1>
+        <p class="pf-title" data-live="id_job_title" data-fallback="Add your role or title">{{ profile.job_title|default:"Add your role or title" }}</p>
+        <div class="pf-badges">
+          <span class="wb-chip">@{{ request.user.username }}</span>
+          <span class="wb-chip">{% if request.user.is_staff %}Mission staff{% else %}Crew member{% endif %}</span>
+          <span class="wb-chip is-quiet">Aboard since {{ request.user.date_joined|date:"M Y" }}</span>
+        </div>
+      </div>
+    </div>
+    <dl class="pf-stats">
+      <div><dt>Sessions</dt><dd>{{ summary.sessions }}</dd></div>
+      <div><dt>Avg mood lift</dt><dd{% if summary.mean_lift and summary.mean_lift > 0 %} class="is-good"{% endif %}>{% if summary.mean_lift is not None %}{{ summary.mean_lift|signed }}{% else %}–{% endif %}</dd></div>
+      <div><dt>Best world</dt><dd>{{ summary.favourite.theme|default:"–" }}</dd></div>
+      <div><dt>Last check-in</dt><dd>{% if last_checkin %}Day {{ last_checkin.mission_day }}{% else %}–{% endif %}</dd></div>
+    </dl>
+  </section>
+
+  <div class="pf-grid">
+    <section class="card pf-panel pf-photo">
+      <p class="eyebrow">Portrait</p>
+      <h2>Your photo</h2>
+      <label class="pf-drop" for="id_photo" data-dropzone>
+        <span class="pf-drop-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg></span>
+        <b>Drop a photo here or click to upload</b>
+        <small>JPEG, PNG or WebP · up to 5 MB</small>
+      </label>
+      <input class="pf-file" type="file" name="photo" id="id_photo" accept="image/jpeg,image/png,image/webp" data-avatar-input>
+      {% if form.photo.errors %}<p class="wb-error">{{ form.photo.errors|join:" " }}</p>{% endif %}
+      {% if profile.photo %}
+      <label class="pf-toggle"><input type="checkbox" name="photo-clear" data-avatar-clear><span class="pf-switch" aria-hidden="true"></span>Remove current photo</label>
+      {% endif %}
+      <p class="fine-print">Photos are resized to 800 px and their metadata removed. Only you can see your account photo.</p>
+    </section>
+
+    <section class="card pf-panel pf-details">
+      <p class="eyebrow">Details · all optional</p>
+      <h2>About you</h2>
+      <div class="pf-fields">
+        <div class="wb-field">
+          <label for="id_display_name">{{ form.display_name.label }}</label>
+          {{ form.display_name }}
+          <small class="pf-help">Used in your greeting on the home page.</small>
+          {% if form.display_name.errors %}<p class="wb-error">{{ form.display_name.errors|join:" " }}</p>{% endif %}
+        </div>
+        <div class="wb-field">
+          <label for="id_job_title">{{ form.job_title.label }}</label>
+          {{ form.job_title }}
+          {% if form.job_title.errors %}<p class="wb-error">{{ form.job_title.errors|join:" " }}</p>{% endif %}
+        </div>
+        <div class="wb-field pf-wide">
+          <label for="id_biography">{{ form.biography.label }}</label>
+          {{ form.biography }}
+          {% if form.biography.errors %}<p class="wb-error">{{ form.biography.errors|join:" " }}</p>{% endif %}
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <div class="wb-submit-bar pf-save">
+    <p class="pf-save-note"><span aria-hidden="true">🔒</span> Your profile is private to your account. Crew directory entries are managed separately by mission staff.</p>
+    <button type="submit" class="button button-primary button-lg">Save my profile</button>
+  </div>
 </form>
 {% endblock %}

@@ -1,0 +1,10 @@
+<div class="wb-orbit" aria-hidden="true">
+  <div class="wb-orbit-ring wb-ring-1"></div><div class="wb-orbit-ring wb-ring-2"></div><div class="wb-orbit-ring wb-ring-3"></div>
+  {% for item in themes %}
+  <div class="wb-orbit-track wb-track-{{ forloop.counter }}"><span class="wb-planet" style="--scene: {{ item.scene.gradient }}"><i>{{ item.scene.theme }}</i></span></div>
+  {% endfor %}
+  <div class="wb-orbit-core">
+    {% if last_checkin %}<small>Last mood</small><b>{{ last_checkin.mood }}<span>/5</span></b><small>Day {{ last_checkin.mission_day }}</small>
+    {% else %}<small>Ready for</small><b class="wb-core-word">lift-off</b>{% endif %}
+  </div>
+</div>

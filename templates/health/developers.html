@@ -1,14 +1,56 @@
 {% extends "health/base.html" %}
-{% block title %}Our developers · Astro-Doctor{% endblock %}
+{% block title %}Meet the developers · Astro-Doctor{% endblock %}
 {% block content %}
-<section class="mission-banner"><p class="eyebrow">BUILT BY PEOPLE, FOR PEOPLE</p><h1>The development team</h1><p>Meet the five developers behind Astro-Doctor. {{ developer_count }} of 5 profiles added.</p></section>
-<div class="crew-grid developer-grid">
-{% for slot in slots %}<article class="card crew-card">
-<div class="crew-card-cover"><span class="crew-badge">Developer {{ slot.number }} / 5</span></div>
-{% if slot.member %}{% with member=slot.member %}
-{% if member.photo %}<img class="crew-portrait" src="{% url 'developer_photo' slot.number %}" alt="Portrait of {{ member.full_name }}" width="112" height="112">{% else %}<div class="crew-portrait portrait-initials">{{ member.initials }}</div>{% endif %}
-<div class="crew-card-body"><p class="eyebrow">{{ member.role }}</p><h2>{{ member.full_name }}</h2><div class="muted profile-bio">{{ member.biography|linebreaks }}</div><div class="developer-links">{% if member.github %}<a href="{{ member.github }}" target="_blank" rel="noopener noreferrer">GitHub ↗</a>{% endif %}{% if member.website %}<a href="{{ member.website }}" target="_blank" rel="noopener noreferrer">Website ↗</a>{% endif %}{% if member.email %}<a href="mailto:{{ member.email }}">Email</a>{% endif %}</div><a class="button button-secondary" href="{% url 'developer_edit' slot.number %}">Edit profile</a></div>
-{% endwith %}{% else %}<div class="crew-portrait portrait-initials">+</div><div class="crew-card-body"><p class="eyebrow">YOUR TEAM</p><h2>Open team slot</h2><p class="muted">Add a developer’s portrait, role, bio, and links.</p><a class="button button-primary" href="{% url 'developer_edit' slot.number %}">Add developer</a></div>{% endif %}
-</article>{% endfor %}
+<div class="page-heading cr-heading">
+  <div>
+    <p class="eyebrow">Mission engineering</p>
+    <h1>Meet the developers</h1>
+    <p class="muted">The five people who built Astro-Doctor: check-ins, the adaptive engine, the 3D worlds and their soundscapes.</p>
+  </div>
+  <div class="dv-progress" aria-label="{{ developer_count }} of 5 profiles added">
+    <span class="dv-progress-label mono">{{ developer_count }} of 5 profiles added</span>
+    <span class="dv-seats" aria-hidden="true">{% for slot in slots %}<i class="{% if slot.member %}is-filled{% endif %}"></i>{% endfor %}</span>
+  </div>
 </div>
+
+<div class="dv-grid">
+  {% for slot in slots %}
+  {% if slot.member %}{% with member=slot.member %}
+  <article class="dv-card">
+    <div class="dv-card-band"><span class="dv-seat mono">Seat 0{{ slot.number }}</span></div>
+    <div class="dv-card-top">
+      <span class="cr-avatar">{% if member.photo %}<img src="{% url 'developer_photo' slot.number %}" alt="Portrait of {{ member.full_name }}" width="84" height="84" loading="lazy">{% else %}<span aria-label="No portrait uploaded">{{ member.initials }}</span>{% endif %}</span>
+      <a class="dv-edit" href="{% url 'developer_edit' slot.number %}" aria-label="Edit {{ member.full_name }}" title="Edit profile">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="m13.5 6.5 4 4"/></svg>
+      </a>
+    </div>
+    <div class="dv-card-body">
+      <h2>{{ member.full_name }}</h2>
+      <p class="dv-role">{{ member.role }}</p>
+      {% if member.biography %}<div class="dv-bio">{{ member.biography|linebreaks }}</div>{% endif %}
+    </div>
+    {% if member.github or member.website or member.email %}
+    <div class="dv-links">
+      {% if member.github %}<a href="{{ member.github }}" target="_blank" rel="noopener noreferrer"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a10 10 0 0 0-3.2 19.5c.5.1.7-.2.7-.5v-1.7c-2.8.6-3.4-1.3-3.4-1.3-.4-1.2-1.1-1.5-1.1-1.5-.9-.6.1-.6.1-.6 1 .1 1.5 1 1.5 1 .9 1.5 2.4 1.1 3 .8.1-.6.3-1.1.6-1.3-2.2-.3-4.6-1.1-4.6-5a3.9 3.9 0 0 1 1-2.7c-.1-.3-.4-1.3.1-2.7 0 0 .8-.3 2.8 1a9.6 9.6 0 0 1 5 0c1.9-1.3 2.8-1 2.8-1 .5 1.4.2 2.4.1 2.7a3.9 3.9 0 0 1 1 2.7c0 3.9-2.4 4.7-4.6 5 .4.3.7.9.7 1.9V21c0 .3.2.6.7.5A10 10 0 0 0 12 2z"/></svg>GitHub</a>{% endif %}
+      {% if member.website %}<a href="{{ member.website }}" target="_blank" rel="noopener noreferrer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg>Website</a>{% endif %}
+      {% if member.email %}<a href="mailto:{{ member.email }}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg>Email</a>{% endif %}
+    </div>
+    {% endif %}
+  </article>
+  {% endwith %}{% else %}
+  <a class="dv-card dv-open" href="{% url 'developer_edit' slot.number %}">
+    <span class="dv-seat mono">Seat 0{{ slot.number }}</span>
+    <span class="dv-open-icon" aria-hidden="true">+</span>
+    <h2>Open seat</h2>
+    <p class="muted">Add a developer's portrait, role, story and links.</p>
+    <span class="button button-secondary">Add developer</span>
+  </a>
+  {% endif %}
+  {% endfor %}
+</div>
+
+<section class="card pf-panel dv-stack">
+  <div><p class="eyebrow">Mission stack</p><h2>What powers Astro-Doctor</h2></div>
+  <ul>{% for name, purpose in stack %}<li><b>{{ name }}</b><span>{{ purpose }}</span></li>{% endfor %}</ul>
+</section>
 {% endblock %}

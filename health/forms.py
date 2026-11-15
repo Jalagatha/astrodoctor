@@ -12,10 +12,19 @@ class CrewMemberForm(forms.ModelForm):
     class Meta:
         model = CrewMember
         fields = ["full_name", "call_sign", "role", "agency", "nationality", "mission", "status", "mission_start", "date_of_birth", "email", "biography", "photo"]
+        labels = {"call_sign": "Call sign", "mission_start": "Mission start", "date_of_birth": "Date of birth", "email": "Contact email"}
         widgets = {
+            "full_name": forms.TextInput(attrs={"placeholder": "e.g. Amina Okello", "data-live-source": "", "data-initials-source": ""}),
+            "call_sign": forms.TextInput(attrs={"placeholder": "e.g. Orion", "data-live-source": ""}),
+            "role": forms.TextInput(attrs={"placeholder": "e.g. Flight engineer", "data-live-source": ""}),
+            "agency": forms.TextInput(attrs={"placeholder": "e.g. NASA, ESA, KARI"}),
+            "nationality": forms.TextInput(attrs={"placeholder": "e.g. Kenyan"}),
+            "mission": forms.TextInput(attrs={"placeholder": "e.g. Expedition 74"}),
+            "status": forms.RadioSelect,
             "mission_start": forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d"),
             "date_of_birth": forms.DateInput(attrs={"type": "date"}, format="%Y-%m-%d"),
-            "biography": forms.Textarea(attrs={"rows": 4}),
+            "email": forms.EmailInput(attrs={"placeholder": "name@agency.org"}),
+            "biography": forms.Textarea(attrs={"rows": 5, "placeholder": "Background, expertise and what they bring to the mission."}),
             "photo": forms.ClearableFileInput(attrs={"accept": "image/jpeg,image/png,image/webp"}),
         }
 
@@ -49,8 +58,14 @@ class DeveloperForm(CrewMemberForm):
 
         model = Developer
         fields = ["full_name", "role", "biography", "email", "github", "website", "photo"]
+        labels = {"github": "GitHub profile", "email": "Email"}
         widgets = {
-            "biography": forms.Textarea(attrs={"rows": 4}),
+            "full_name": forms.TextInput(attrs={"placeholder": "e.g. Ada Lovelace", "data-live-source": "", "data-initials-source": ""}),
+            "role": forms.TextInput(attrs={"placeholder": "e.g. Machine-learning engineer", "data-live-source": ""}),
+            "email": forms.EmailInput(attrs={"placeholder": "name@example.org"}),
+            "github": forms.URLInput(attrs={"placeholder": "https://github.com/username"}),
+            "website": forms.URLInput(attrs={"placeholder": "https://…"}),
+            "biography": forms.Textarea(attrs={"rows": 5, "placeholder": "What they built for Astro-Doctor and what they care about."}),
             "photo": forms.ClearableFileInput(attrs={"accept": "image/jpeg,image/png,image/webp"}),
         }
 
@@ -69,7 +84,10 @@ class UserProfileForm(CrewMemberForm):
 
         model = UserProfile
         fields = ["display_name", "job_title", "biography", "photo"]
+        labels = {"display_name": "Display name", "job_title": "Role or title", "biography": "Short bio"}
         widgets = {
-            "biography": forms.Textarea(attrs={"rows": 4}),
+            "display_name": forms.TextInput(attrs={"placeholder": "What should we call you?", "autocomplete": "nickname", "data-live-source": "", "data-initials-source": ""}),
+            "job_title": forms.TextInput(attrs={"placeholder": "e.g. Flight engineer", "data-live-source": ""}),
+            "biography": forms.Textarea(attrs={"rows": 5, "placeholder": "A few words about you, your mission or what helps you recharge."}),
             "photo": forms.ClearableFileInput(attrs={"accept": "image/jpeg,image/png,image/webp"}),
         }

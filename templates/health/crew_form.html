@@ -1,12 +1,69 @@
 {% extends "health/base.html" %}
-{% block title %}Crew profile · Astro-Doctor{% endblock %}
+{% block title %}{% if member %}Edit {{ member.full_name }}{% else %}New crew member{% endif %} · Astro-Doctor{% endblock %}
 {% block content %}
-<div class="page-heading"><div><p class="eyebrow">CREW PERSONNEL</p><h1>{% if member %}Edit {{ member.full_name }}{% else %}New crew member{% endif %}</h1><p class="muted">Add a portrait and the details that introduce your crew member.</p></div></div>
-<form method="post" enctype="multipart/form-data" class="card profile-form">
-{% csrf_token %}
-{{ form.non_field_errors }}
-<div class="profile-fields">
-{% for field in form %}<div class="profile-field {% if field.name == 'biography' or field.name == 'photo' %}field-wide{% endif %}"><label for="{{ field.id_for_label }}">{{ field.label }}{% if field.field.required %} <span aria-hidden="true">*</span>{% endif %}</label>{% if field.name == 'photo' %}{% if member.photo %}<div class="profile-current-photo">{% include "health/portrait.html" %}<label><input type="checkbox" name="photo-clear" id="photo-clear_id"> Remove current portrait</label></div>{% endif %}<input type="file" name="photo" id="id_photo" accept="image/jpeg,image/png,image/webp">{% else %}{{ field }}{% endif %}{{ field.errors }}{% if field.name == 'photo' %}<p class="fine-print">JPEG, PNG, or WebP · up to 5 MB and 20 megapixels. Portraits are resized and image metadata is removed.</p>{% endif %}</div>{% endfor %}
-</div><div class="checkin-actions"><button type="submit" class="button button-primary">Save profile</button><a class="button button-secondary" href="{% if member %}{% url 'crew_detail' member.pk %}{% else %}{% url 'crew_list' %}{% endif %}">Cancel</a></div>
+<a class="cr-back" href="{% if member %}{% url 'crew_detail' member.pk %}{% else %}{% url 'crew_list' %}{% endif %}">← {% if member %}Back to {{ member.full_name }}{% else %}All crew members{% endif %}</a>
+<div class="page-heading"><div>
+  <p class="eyebrow">Crew personnel</p>
+  <h1>{% if member %}Edit crew profile{% else %}New crew member{% endif %}</h1>
+  <p class="muted">Fields marked * are required. Everything else can be added later.</p>
+</div></div>
+
+<form method="post" enctype="multipart/form-data" class="profile-form pf cr-form" novalidate>
+  {% csrf_token %}
+  {% if form.non_field_errors %}<div class="message message-error">{{ form.non_field_errors|join:" " }}</div>{% endif %}
+  <div class="pf-grid">
+    <section class="card pf-panel pf-photo">
+      <p class="eyebrow">Portrait</p>
+      <div class="cr-preview">
+        <div class="pf-avatar" data-avatar>
+          <img data-avatar-img {% if member.photo %}src="{% url 'crew_photo' member.pk %}" alt="Current portrait of {{ member.full_name }}"{% else %}alt="" hidden{% endif %}>
+          <span data-avatar-initials {% if member.photo %}hidden{% endif %}>{{ member.initials|default:"+" }}</span>
+        </div>
+        <div class="cr-preview-text">
+          <b data-live="id_full_name" data-fallback="New crew member">{{ form.full_name.value|default:"New crew member" }}</b>
+          <span data-live="id_role" data-fallback="Role">{{ form.role.value|default:"Role" }}</span>
+          <span class="cr-callsign" data-live="id_call_sign" data-fallback="">{{ form.call_sign.value|default:"" }}</span>
+        </div>
+      </div>
+      <label class="pf-drop" for="id_photo" data-dropzone>
+        <span class="pf-drop-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg></span>
+        <b>Drop a portrait or click to upload</b>
+        <small>JPEG, PNG or WebP · up to 5 MB</small>
+      </label>
+      <input class="pf-file" type="file" name="photo" id="id_photo" accept="image/jpeg,image/png,image/webp" data-avatar-input>
+      {% if form.photo.errors %}<p class="wb-error">{{ form.photo.errors|join:" " }}</p>{% endif %}
+      {% if member.photo %}<label class="pf-toggle"><input type="checkbox" name="photo-clear" id="photo-clear_id" data-avatar-clear><span class="pf-switch" aria-hidden="true"></span>Remove current portrait</label>{% endif %}
+      <p class="fine-print">Portraits are resized to 800 px and image metadata is removed. They're only shown to signed-in staff.</p>
+    </section>
+
+    <div class="cr-sections">
+      {% for section, fields in sections %}
+      <section class="card pf-panel">
+        <p class="eyebrow">{{ section.0 }}</p>
+        <h2>{{ section.1 }}</h2>
+        <div class="pf-fields">
+          {% for field in fields %}
+          <div class="wb-field{% if field.name == 'biography' or field.name == 'status' %} pf-wide{% endif %}">
+            {% if field.name == "status" %}
+            <span class="cr-label">{{ field.label }} <span class="cr-req" aria-hidden="true">*</span></span>
+            <div class="wb-segments cr-status-pick">{% for choice in field %}<label class="wb-segment">{{ choice.tag }}<span><i class="cr-dot cr-dot-{{ choice.data.value }}"></i>{{ choice.choice_label }}</span></label>{% endfor %}</div>
+            {% else %}
+            <label for="{{ field.id_for_label }}">{{ field.label }}{% if field.field.required %} <span class="cr-req" aria-hidden="true">*</span>{% endif %}</label>
+            {{ field }}
+            {% endif %}
+            {% if field.errors %}<p class="wb-error">{{ field.errors|join:" " }}</p>{% endif %}
+          </div>
+          {% endfor %}
+        </div>
+      </section>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="wb-submit-bar pf-save">
+    <p class="pf-save-note">Crew profiles are visible to signed-in mission staff.</p>
+    <a class="button button-quiet" href="{% if member %}{% url 'crew_detail' member.pk %}{% else %}{% url 'crew_list' %}{% endif %}">Cancel</a>
+    <button type="submit" class="button button-primary button-lg">{% if member %}Save changes{% else %}Create profile{% endif %}</button>
+  </div>
 </form>
 {% endblock %}

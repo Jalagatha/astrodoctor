@@ -1,167 +1,43 @@
 import io
 import uuid
 
-import pandas as pd
 from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import Client, TestCase
-from django.urls import reverse
-
-from engine import analyse, simulate
-from .models import CheckIn, DailyRecord
-from .services import import_dataset, parse_dataset, save_checkin, save_frame
-
-
-class DatasetImportTests(TestCase):
-    def setUp(self):
-        frame = simulate(days=21)
-        frame = frame.drop(columns=["radiation_msv"])
-        self.csv_bytes = frame.to_csv(index=False).encode()
-
-    def test_csv_import_accepts_optional_radiation_and_sorts_days(self):
-        frame = parse_dataset(SimpleUploadedFile("crew.csv", self.csv_bytes))
-
-        self.assertEqual(len(frame), 21)
-        self.assertEqual(frame.day.iloc[0], 1)
-        self.assertTrue(frame.radiation_msv.isna().all())
-
-    def test_excel_import_and_required_columns(self):
-        output = io.BytesIO()
-        pd.read_csv(io.BytesIO(self.csv_bytes)).to_excel(output, index=False)
-        frame = parse_dataset(SimpleUploadedFile("crew.xlsx", output.getvalue()))
-        self.assertEqual(len(frame), 21)
-
-        incomplete = pd.read_csv(io.BytesIO(self.csv_bytes)).drop(columns=["spo2"])
-        upload = SimpleUploadedFile("incomplete.csv", incomplete.to_csv(index=False).encode())
-        with self.assertRaisesRegex(ValueError, "spo2"):
-            parse_dataset(upload)
-
-    def test_import_rejects_duplicate_days_and_short_baselines(self):
-        source = pd.read_csv(io.BytesIO(self.csv_bytes))
-        source.loc[1, "day"] = source.loc[0, "day"]
-        upload = SimpleUploadedFile("duplicate.csv", source.to_csv(index=False).encode())
-        with self.assertRaisesRegex(ValueError, "only once"):
-            parse_dataset(upload)
-
-        short = pd.read_csv(io.BytesIO(self.csv_bytes)).head(20)
-        upload = SimpleUploadedFile("short.csv", short.to_csv(index=False).encode())
-        with self.assertRaisesRegex(ValueError, "at least 21"):
-            parse_dataset(upload)
-
-    def test_append_rejects_conflicting_days_and_replace_clears_checkins(self):
-        frame = parse_dataset(SimpleUploadedFile("crew.csv", self.csv_bytes))
-        import_dataset(frame, "replace")
-        with self.assertRaisesRegex(ValueError, "already exist"):
-            import_dataset(frame, "append")
-        CheckIn.objects.create(
-            day=21,
-            mood=7,
-            stress=4,
-            sleep_h=7,
-            symptoms=[],
-        )
-        import_dataset(frame, "replace")
-        self.assertEqual(DailyRecord.objects.count(), 21)
-        self.assertEqual(CheckIn.objects.count(), 0)
-
-
-class CheckInTests(TestCase):
-    def setUp(self):
-        from .models import DatasetLock
-
-        DatasetLock.objects.get_or_create(pk=1)
-        save_frame(simulate(days=21))
-
-    def test_checkin_appends_a_day_and_retries_idempotently(self):
-        client_id = uuid.uuid4()
-        first, created = save_checkin(client_id, 8, 3, 7.5, ["Headache"])
-        retry, retry_created = save_checkin(client_id, 8, 3, 7.5, ["Headache"])
-
-        self.assertTrue(created)
-        self.assertFalse(retry_created)
-        self.assertEqual(first.day, 22)
-        self.assertEqual(retry.pk, first.pk)
-        self.assertEqual(DailyRecord.objects.count(), 22)
-        self.assertEqual(first.symptoms, ["Headache"])
-
-    def test_checkin_rejects_out_of_range_values(self):
-        with self.assertRaisesRegex(ValueError, "between 1 and 10"):
-            save_checkin(uuid.uuid4(), 11, 3, 7, [])
-
-
-class AnalysisTests(TestCase):
-    def test_analysis_marks_missing_radiation_as_unavailable(self):
-        frame = simulate(days=21).drop(columns=["radiation_msv"])
-
-        result = analyse(frame)
-
-        self.assertIsNone(result["radiation_pct"])
-        self.assertIsNone(result["radiation_projected"])
-
-    def test_analysis_rejects_empty_dataset(self):
-        with self.assertRaisesRegex(ValueError, "daily record"):
-            analyse(pd.DataFrame())
-
-
-class DashboardTests(TestCase):
-    def setUp(self):
-        self.user = get_user_model().objects.create_user(
-            username="operator",
-            password="test-password",
-            is_staff=True,
-        )
-        self.client = Client()
-
-    def test_dashboard_requires_staff_login(self):
-        response = self.client.get(reverse("dashboard"))
-        self.assertEqual(response.status_code, 302)
-        self.assertIn(reverse("login"), response.url)
-
-    def test_dashboard_renders_import_and_analysis_views(self):
-        self.client.force_login(self.user)
-        response = self.client.get(reverse("dashboard"))
-        self.assertContains(response, "Start with a dataset")
-
-        from .models import DatasetLock
-
-        DatasetLock.objects.get_or_create(pk=1)
-        save_frame(simulate(days=21))
-        response = self.client.get(reverse("dashboard"))
-        self.assertContains(response, "Health overview")
-        self.assertContains(response, "Indicator trends")
-        self.assertContains(response, "checkin-form")
-
-    def test_pwa_manifest_and_offline_page_are_available(self):
-        self.assertEqual(self.client.get(reverse("manifest")).status_code, 200)
-        self.assertContains(self.client.get(reverse("offline")), "Connection unavailable")
-
-    def test_checkin_api_saves_valid_data_and_rejects_bad_payload(self):
-        from .models import DatasetLock
-
-        DatasetLock.objects.get_or_create(pk=1)
-        save_frame(simulate(days=21))
-        self.client.force_login(self.user)
-        response = self.client.post(
-            reverse("check_in"),
-            data='{"client_id":"c1fba3b7-59a6-4e8d-a3de-587137d13dc9","mood":8,"stress":3,"sleep_h":7.5,"symptoms":["Headache"]}',
-            content_type="application/json",
-        )
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json()["day"], 22)
-        self.assertEqual(DailyRecord.objects.count(), 22)
-
-        response = self.client.post(reverse("check_in"), data="[]", content_type="application/json")
-        self.assertEqual(response.status_code, 400)
+from django.urls import NoReverseMatch, reverse
 
 
 class OfflineShellTests(TestCase):
-    def test_service_worker_precaches_offline_form_assets(self):
+    def test_service_worker_precaches_offline_page_assets(self):
         response = self.client.get(reverse("service_worker"))
         self.assertEqual(response.status_code, 200)
-        for asset in ("/offline/", "/static/health/app.js", "/static/health/app.css", "/static/health/icon.svg"):
+        for asset in ("/offline/", "/static/health/app.css", "/static/wellbeing/shell.css", "/static/health/icon.svg"):
             self.assertContains(response, asset)
+        self.assertNotContains(response, "/static/health/app.js")
         self.assertEqual(response["Cache-Control"], "no-cache")
         self.assertContains(response, 'key.startsWith("astrodoctor-shell-")')
+        # Static assets are network-first so CSS/JS updates are never hidden by the cache.
+        script = response.content.decode()
+        static_branch = script[script.index('url.pathname.startsWith("/static/")'):script.index('request.mode === "navigate"')]
+        self.assertLess(static_branch.index("fetch(request)"), static_branch.index("caches.match(request)"))
+        self.assertIn('cache: "reload"', script)
+
+    def test_pwa_manifest_and_offline_page_are_available(self):
+        self.assertEqual(self.client.get(reverse("manifest")).status_code, 200)
+        page = self.client.get(reverse("offline"))
+        self.assertContains(page, "You're offline")
+        self.assertNotContains(page, "checkin-form")
+
+
+class HealthDashboardRemovedTests(TestCase):
+    def test_dashboard_routes_no_longer_exist(self):
+        for name in ("dashboard", "import_data", "load_demo", "check_in", "dataset_training"):
+            with self.assertRaises(NoReverseMatch):
+                reverse(name)
+        staff = get_user_model().objects.create_user("ops", password="pw-12345-x", is_staff=True)
+        self.client.force_login(staff)
+        self.assertEqual(self.client.get("/health/").status_code, 404)
+        self.assertNotContains(self.client.get(reverse("home")), "Health dashboard")
 
 
 class CrewProfileTests(TestCase):
@@ -182,6 +58,30 @@ class CrewProfileTests(TestCase):
         member.refresh_from_db()
         self.assertEqual(member.role, "Commander")
         self.assertEqual(response.status_code, 302)
+
+    def test_mission_clock_age_and_redesigned_pages(self):
+        from datetime import date, timedelta
+        from .models import CrewMember
+
+        today = date.today()
+        flying = CrewMember.objects.create(full_name="Amina Okello", role="Engineer", mission="Expedition 74", status="active",
+                                           mission_start=today - timedelta(days=9), date_of_birth=date(today.year - 30, 1, 1))
+        CrewMember.objects.create(full_name="Lena Fischer", role="Specialist", mission="Artemis IV", status="training",
+                                  mission_start=today + timedelta(days=5))
+        self.assertEqual(flying.mission_clock(today), ("day", 10))
+        self.assertEqual(CrewMember(mission_start=today + timedelta(days=5)).mission_clock(today), ("countdown", 5))
+        self.assertIsNone(CrewMember().mission_clock(today))
+        self.assertEqual(flying.age, 30)
+
+        directory = self.client.get(reverse("crew_list"))
+        self.assertContains(directory, "across 2 missions")
+        self.assertContains(directory, "Day 10")
+        self.assertContains(directory, "T−5 d")
+        self.assertContains(directory, 'data-status="training"')
+        self.assertContains(self.client.get(reverse("crew_detail", args=[flying.pk])), "Day 10")
+        form = self.client.get(reverse("crew_edit", args=[flying.pk]))
+        for heading in ("Who they are", "Assignment", "Contact and background"):
+            self.assertContains(form, heading)
 
     def test_profile_requires_name_role_and_mission(self):
         response = self.client.post(reverse("crew_create"), {"status": "active"})
@@ -246,6 +146,20 @@ class DeveloperTeamTests(TestCase):
         self.assertEqual(Developer.objects.count(), 5)
         self.assertEqual(self.client.post(reverse("developer_edit", args=[6]), self.payload).status_code, 404)
 
+    def test_redesigned_team_page_shows_seats_links_and_stack(self):
+        from .models import Developer
+
+        Developer.objects.create(slot=2, full_name="Ada Developer", role="Frontend engineer", github="https://github.com/example")
+        page = self.client.get(reverse("developer_team"))
+        self.assertContains(page, "1 of 5 profiles added")
+        self.assertContains(page, "Seat 02")
+        self.assertContains(page, "Open seat", count=4)
+        self.assertContains(page, 'href="https://github.com/example" target="_blank" rel="noopener noreferrer"')
+        self.assertContains(page, "What powers Astro-Doctor")
+        form = self.client.get(reverse("developer_edit", args=[2]))
+        for heading in ("Who they are", "Where to find them", "Their story"):
+            self.assertContains(form, heading)
+
     def test_database_rejects_invalid_and_duplicate_slots(self):
         from django.db import IntegrityError, transaction
         from .models import Developer
@@ -289,8 +203,9 @@ class DeveloperTeamTests(TestCase):
 
     def test_footer_and_ui_assets_are_available(self):
         response = self.client.get(reverse("developer_team"))
-        for text in ("Meet the developers", 'id="appearance-theme"', 'id="appearance-background"', "health/ui.js"):
+        for text in ("Meet the developers", 'id="appearance-theme"', "health/ui.js"):
             self.assertContains(response, text)
+        self.assertNotContains(response, 'id="appearance-background"')
         self.assertContains(self.client.get(reverse("service_worker")), "/static/health/ui.js")
 
 
@@ -361,85 +276,3 @@ class AccountProfileTests(TestCase):
         self.assertContains(self.client.get(reverse("service_worker")), "/static/health/camera.js")
 
 
-class DatasetTrainingTests(TestCase):
-    def setUp(self):
-        from .models import DatasetLock
-
-        DatasetLock.objects.get_or_create(pk=1)
-        self.frame = simulate(days=42)
-        save_frame(self.frame)
-        self.user = get_user_model().objects.create_user(username="trainer", is_staff=True)
-        self.client.force_login(self.user)
-
-    def test_training_uses_only_early_rows_and_persists_report(self):
-        from .services import analyse_dataset, train_dataset
-
-        trained = train_dataset(28)
-        self.assertAlmostEqual(trained.means["resting_hr"], self.frame.resting_hr.iloc[:28].mean())
-        self.assertAlmostEqual(trained.deviations["resting_hr"], self.frame.resting_hr.iloc[:28].std())
-        self.assertEqual(trained.report["evaluation_rows"], 14)
-        self.assertEqual(len(trained.report["indicators"]), 9)
-        self.assertAlmostEqual(analyse_dataset(self.frame)["baseline"]["resting_hr"], trained.means["resting_hr"])
-        self.assertNotAlmostEqual(analyse(self.frame)["baseline"]["resting_hr"], trained.means["resting_hr"])
-
-    def test_holdout_changes_do_not_change_fitted_statistics(self):
-        from .services import train_dataset
-
-        first = train_dataset(21)
-        DailyRecord.objects.filter(day__gt=21).update(resting_hr=200)
-        second = train_dataset(21)
-        self.assertEqual(first.means, second.means)
-        self.assertEqual(first.deviations, second.deviations)
-        self.assertEqual(second.report["hard_limit_rows"], 21)
-
-    def test_training_preserves_hard_limits(self):
-        from .services import analyse_dataset, records_frame, train_dataset
-
-        DailyRecord.objects.all().update(resting_hr=110)
-        trained = train_dataset(21)
-        result = analyse_dataset(records_frame())
-        self.assertEqual(result["levels"]["Cardiovascular"], "Red")
-        self.assertTrue(trained.report["warnings"])
-        self.assertTrue(any("100 bpm" in alert["why"] for alert in result["alerts"]))
-
-    def test_invalid_split_does_not_replace_existing_model(self):
-        from .models import DatasetCalibration
-        from .services import train_dataset
-
-        trained = train_dataset(21)
-        for split in (20, 36, "bad", "21.5", None):
-            with self.assertRaises(ValueError):
-                train_dataset(split)
-        self.assertEqual(DatasetCalibration.objects.get().trained_at, trained.trained_at)
-
-    def test_import_invalidates_training_and_checkin_keeps_it(self):
-        from .models import DatasetCalibration
-        from .services import train_dataset
-
-        train_dataset(21)
-        save_checkin(uuid.uuid4(), 7, 4, 7, [])
-        self.assertTrue(DatasetCalibration.objects.exists())
-        import_dataset(self.frame, "replace")
-        self.assertFalse(DatasetCalibration.objects.exists())
-
-    def test_training_ui_permissions_and_validation(self):
-        response = self.client.get(reverse("dashboard"))
-        self.assertContains(response, 'id="training-dialog"')
-        response = self.client.post(reverse("dataset_training"), {"baseline_rows": "21"})
-        self.assertRedirects(response, reverse("dashboard"))
-        self.assertContains(self.client.get(reverse("dashboard")), "Trained baseline active")
-        self.assertEqual(self.client.post(reverse("dataset_training"), {"baseline_rows": "100"}).status_code, 400)
-        self.client.logout()
-        self.assertEqual(self.client.post(reverse("dataset_training"), {"baseline_rows": "21"}).status_code, 302)
-        self.user.is_staff = False
-        self.user.save()
-        self.client.force_login(self.user)
-        self.assertEqual(self.client.get(reverse("dataset_training")).status_code, 302)
-
-    def test_short_dataset_cannot_train_and_reports_reason(self):
-        from .services import train_dataset
-
-        DailyRecord.objects.filter(day__gt=21).delete()
-        with self.assertRaisesRegex(ValueError, "7 later rows"):
-            train_dataset(21)
-        self.assertContains(self.client.get(reverse("dataset_training")), "Training needs at least 28 rows")

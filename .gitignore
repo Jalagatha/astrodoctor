@@ -6,4 +6,7 @@ staticfiles/
 *.log
 media/
 *.sqlite3
-.meridian-demo-credentials.txt
+# Trained model artefacts are rebuilt with `manage.py train_recommender`.
+ml_models/*.joblib
+~$*
+data/uploads/

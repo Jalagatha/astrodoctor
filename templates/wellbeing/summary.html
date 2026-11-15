@@ -1,0 +1,42 @@
+{% extends "health/base.html" %}
+{% load wellbeing_tags %}
+{% block title %}Session summary · Astro-Doctor{% endblock %}
+{% block content %}
+{% with scene=session.scene_info %}
+<section class="wb-summary">
+  <div class="wb-summary-art">{% include "wellbeing/_art.html" with key=scene.key %}</div>
+  <div class="wb-summary-body">
+    <p class="eyebrow">Mission day {{ checkin.mission_day }} · {{ session.get_status_display }}</p>
+    <h1>{% if session.status == "rechecked" %}{% if session.gain > 0 %}Nice work. That helped.{% elif session.gain < 0 %}Thanks for the honest re-check.{% else %}Session logged.{% endif %}{% else %}Check-in saved{% endif %}</h1>
+    <p class="muted">{{ scene.theme }}: {{ scene.title }} · {{ checkin.get_time_block_display }}</p>
+  </div>
+  {% if session.status == "rechecked" %}
+  <div class="wb-gauge wb-gauge-lg{% if session.gain < 0 %} is-bad{% endif %}" style="--value: {{ gauge }}" role="img" aria-label="Wellbeing gain {{ session.gain|signed }}"><div class="wb-gauge-inner"><b>{{ session.gain|signed }}</b><small>wellbeing gain</small></div></div>
+  {% endif %}
+</section>
+
+{% if session.status == "rechecked" %}
+<section class="wb-deltas">
+  {% for row in deltas %}
+  <article class="card wb-delta is-{{ row.tone }}">
+    <span class="wb-stat-label">{{ row.label }}</span>
+    <div class="wb-delta-values"><span>{{ row.before }}</span><span class="wb-arrow" aria-hidden="true">→</span><b>{{ row.after }}</b></div>
+    <span class="wb-chip{% if row.tone == 'good' %} is-good{% elif row.tone == 'bad' %} is-bad{% else %} is-quiet{% endif %}">{% if row.delta %}{{ row.delta|signed:0 }}{% else %}no change{% endif %}</span>
+  </article>
+  {% endfor %}
+</section>
+<section class="card wb-panel wb-learn">
+  <span class="wb-learn-icon" aria-hidden="true">✦</span>
+  <div>
+    <h2>The engine learned something</h2>
+    <p class="muted">It predicted {{ session.predicted_gain|signed }} for this world and you reported {{ session.gain|signed }}.
+    {% if session.residual > 0.25 %}It worked better for you than expected, so {{ scene.theme }} will rank a little higher for you next time.{% elif session.residual < -0.25 %}It worked less well than expected, so {{ scene.theme }} will rank a little lower for you next time.{% else %}That matched the prediction closely.{% endif %}</p>
+    <p class="fine-print">{{ session.minutes_completed|floatformat:"-1" }} of {{ session.planned_minutes }} min · enjoyment {{ session.enjoyment }}/5 · {% if session.followed_recommendation %}followed the recommendation{% else %}chosen instead of {{ session.recommended_info.theme }}{% endif %}</p>
+  </div>
+</section>
+{% else %}
+<section class="card wb-panel"><p class="muted">This check-in was saved without running a session.</p></section>
+{% endif %}
+<div class="wb-actions"><a class="button button-primary button-lg" href="{% url 'home' %}">Back to mission home</a><a class="button button-secondary button-lg" href="{% url 'wellbeing_checkin' %}">New check-in</a></div>
+{% endwith %}
+{% endblock %}

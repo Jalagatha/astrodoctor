@@ -38,7 +38,7 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "health.apps.HealthConfig",
-    "meridian.apps.MeridianConfig",
+    "wellbeing.apps.WellbeingConfig",
 ]
 
 MIDDLEWARE = [
@@ -85,7 +85,7 @@ AUTH_PASSWORD_VALIDATORS = [
 ]
 AUTHENTICATION_BACKENDS = ["django.contrib.auth.backends.ModelBackend"]
 LOGIN_URL = "login"
-LOGIN_REDIRECT_URL = "dashboard"
+LOGIN_REDIRECT_URL = "home"
 LOGOUT_REDIRECT_URL = "login"
 LANGUAGE_CODE = "en-us"
 TIME_ZONE = "UTC"
@@ -119,6 +119,14 @@ SECURE_SSL_REDIRECT = not DEBUG
 SECURE_HSTS_SECONDS = 31536000 if not DEBUG else 0
 SECURE_HSTS_INCLUDE_SUBDOMAINS = False
 SECURE_HSTS_PRELOAD = False
+
+# Trained scene-recommendation model (created by `manage.py train_recommender`).
+WELLBEING_MODEL_PATH = Path(os.getenv("WELLBEING_MODEL_PATH", BASE_DIR / "ml_models" / "scene_recommender.joblib"))
+WELLBEING_DATASET_PATH = Path(os.getenv("WELLBEING_DATASET_PATH", BASE_DIR / "data" / "wellbeing_synthetic.csv"))
+WELLBEING_UPLOAD_DIR = BASE_DIR / "data" / "uploads"
+# Dataset generation and training started from the UI run in a background thread.
+# Tests set this to True to run them inline.
+WELLBEING_JOBS_SYNC = False
 
 # Photos are served only through the staff-protected crew photo view.
 MEDIA_ROOT = BASE_DIR / "media"

@@ -1,16 +1,67 @@
 {% extends "health/base.html" %}
 {% block title %}Crew directory · Astro-Doctor{% endblock %}
 {% block content %}
-<section class="mission-banner"><p class="eyebrow">THE PEOPLE BEHIND THE MISSION</p><div class="section-heading"><div><h1>Astronauts & crew</h1><p>One team. Every member accounted for.</p></div><a class="button button-primary" href="{% url 'crew_create' %}">+ Add crew member</a></div></section>
-<div class="crew-grid">
-{% for member in crew %}
-<a class="card crew-card" href="{% url 'crew_detail' member.pk %}">
-  <div class="crew-card-cover"><span class="crew-badge">{{ member.get_status_display }}</span></div>
-  {% include "health/portrait.html" with member=member %}
-  <div class="crew-card-body"><p class="eyebrow">{{ member.role }}</p><h2>{{ member.full_name }}</h2><p class="muted">{% if member.call_sign %}“{{ member.call_sign }}” · {% endif %}{{ member.agency|default:"Agency not specified" }}</p><div class="crew-mission">{{ member.mission }}</div></div>
-</a>
-{% empty %}
-<section class="card empty-state"><h2>Build your mission team</h2><p class="muted">Add your astronauts and crew, upload portraits, and keep mission details together.</p><a class="button button-primary" href="{% url 'crew_create' %}">Create the first profile</a></section>
-{% endfor %}
+<div class="page-heading cr-heading">
+  <div>
+    <p class="eyebrow">Mission personnel</p>
+    <h1>Astronauts &amp; crew</h1>
+    <p class="muted">One team. Every member accounted for.</p>
+  </div>
+  <a class="button button-primary button-lg" href="{% url 'crew_create' %}">+ Add crew member</a>
 </div>
+
+{% if crew %}
+<section class="cr-stats" aria-label="Crew summary">
+  <article class="card wb-stat"><span class="wb-stat-label">Crew members</span><b class="wb-stat-value">{{ crew|length }}</b><span class="wb-stat-sub">across {{ missions }} mission{{ missions|pluralize }}</span></article>
+  <article class="card wb-stat cr-stat-active"><span class="wb-stat-label">Active crew</span><b class="wb-stat-value">{{ counts.active }}</b><span class="wb-stat-sub">currently flying</span></article>
+  <article class="card wb-stat cr-stat-training"><span class="wb-stat-label">In training</span><b class="wb-stat-value">{{ counts.training }}</b><span class="wb-stat-sub">preparing for launch</span></article>
+  <article class="card wb-stat cr-stat-returned"><span class="wb-stat-label">Returned</span><b class="wb-stat-value">{{ counts.returned }}</b><span class="wb-stat-sub">back on Earth</span></article>
+</section>
+
+<div class="cr-toolbar" data-crew-filter>
+  <label class="cr-search">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+    <span class="sr-only">Search crew</span>
+    <input type="search" placeholder="Search name, call sign, role, agency or mission…" data-crew-search>
+  </label>
+  <div class="wb-segments cr-filters" role="group" aria-label="Filter by status">
+    <label class="wb-segment"><input type="radio" name="crew-status" value="" checked><span>All</span></label>
+    {% for key, label in status_choices %}<label class="wb-segment"><input type="radio" name="crew-status" value="{{ key }}"><span><i class="cr-dot cr-dot-{{ key }}"></i>{{ label }}</span></label>{% endfor %}
+  </div>
+  <span class="cr-count" role="status" data-crew-count>{{ crew|length }} of {{ crew|length }}</span>
+</div>
+{% endif %}
+
+<div class="cr-grid">
+  {% for member in crew %}
+  <a class="cr-card cr-{{ member.status }}" href="{% url 'crew_detail' member.pk %}" data-crew-card data-status="{{ member.status }}">
+    <div class="cr-card-band"></div>
+    <div class="cr-card-top">
+      <span class="cr-avatar">{% if member.photo %}<img src="{% url 'crew_photo' member.pk %}" alt="Portrait of {{ member.full_name }}" width="84" height="84" loading="lazy">{% else %}<span aria-label="No portrait uploaded">{{ member.initials }}</span>{% endif %}</span>
+      <span class="cr-status"><i class="cr-dot cr-dot-{{ member.status }}"></i>{{ member.get_status_display }}</span>
+    </div>
+    <div class="cr-card-body">
+      <h2>{{ member.full_name }}</h2>
+      {% if member.call_sign %}<span class="cr-callsign">“{{ member.call_sign }}”</span>{% endif %}
+      <p class="cr-role">{{ member.role }}</p>
+      <p class="cr-meta">{{ member.agency|default:"Agency not specified" }}{% if member.nationality %} · {{ member.nationality }}{% endif %}</p>
+    </div>
+    <div class="cr-card-foot">
+      <span class="cr-mission"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="3.4"/><ellipse cx="12" cy="12" rx="10" ry="4.2" transform="rotate(-28 12 12)"/></svg>{{ member.mission }}</span>
+      {% if member.clock %}<span class="wb-chip{% if member.clock.0 == 'day' %} is-good{% endif %}">{% if member.clock.0 == "day" %}Day {{ member.clock.1 }}{% else %}T−{{ member.clock.1 }} d{% endif %}</span>{% endif %}
+    </div>
+  </a>
+  {% empty %}
+  <section class="card cr-empty">
+    <div class="cr-empty-art is-animated">{% include "wellbeing/_art.html" with key="learning" %}</div>
+    <div>
+      <p class="eyebrow">Mission personnel</p>
+      <h2>Build your mission team</h2>
+      <p class="muted">Add your astronauts and crew, upload portraits, and keep mission details together in one place.</p>
+      <a class="button button-primary button-lg" href="{% url 'crew_create' %}">Create the first profile</a>
+    </div>
+  </section>
+  {% endfor %}
+</div>
+<p class="cr-none muted" data-crew-none hidden>No crew members match your search.</p>
 {% endblock %}

@@ -1,0 +1,6 @@
+<ol class="wb-steps" aria-label="Session workflow">
+  <li class="{% if step == 1 %}is-current{% elif step > 1 %}is-done{% endif %}"{% if step == 1 %} aria-current="step"{% endif %}><span class="wb-step-node">{% if step > 1 %}✓{% else %}1{% endif %}</span><span class="wb-step-text"><b>Check-in</b><small>Mood, sleep, energy</small></span></li>
+  <li class="{% if step == 2 %}is-current{% elif step > 2 %}is-done{% endif %}"{% if step == 2 %} aria-current="step"{% endif %}><span class="wb-step-node">{% if step > 2 %}✓{% else %}2{% endif %}</span><span class="wb-step-text"><b>Adaptive engine</b><small>Phase + mood</small></span></li>
+  <li class="{% if step == 3 %}is-current{% elif step > 3 %}is-done{% endif %}"{% if step == 3 %} aria-current="step"{% endif %}><span class="wb-step-node">{% if step > 3 %}✓{% else %}3{% endif %}</span><span class="wb-step-text"><b>VR session</b><small>10 to 30 minutes</small></span></li>
+  <li class="{% if step == 4 %}is-current{% elif step > 4 %}is-done{% endif %}"{% if step == 4 %} aria-current="step"{% endif %}><span class="wb-step-node">{% if step > 4 %}✓{% else %}4{% endif %}</span><span class="wb-step-text"><b>Re-check</b><small>Learns what works</small></span></li>
+</ol>

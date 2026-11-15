@@ -3,46 +3,6 @@ import uuid
 from django.db import models
 
 
-class DailyRecord(models.Model):
-    day = models.PositiveIntegerField(unique=True)
-    resting_hr = models.FloatField()
-    hrv_rmssd = models.FloatField()
-    spo2 = models.FloatField()
-    grip_kg = models.FloatField()
-    resist_min = models.FloatField()
-    body_temp = models.FloatField()
-    sleep_h = models.FloatField()
-    mood = models.FloatField()
-    stress = models.FloatField()
-    radiation_msv = models.FloatField(null=True, blank=True)
-
-    class Meta:
-        ordering = ["day"]
-
-    def __str__(self):
-        return f"Mission day {self.day}"
-
-
-class DatasetLock(models.Model):
-    id = models.PositiveSmallIntegerField(primary_key=True, default=1, editable=False)
-
-
-class CheckIn(models.Model):
-    client_id = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
-    day = models.PositiveIntegerField()
-    mood = models.PositiveSmallIntegerField()
-    stress = models.PositiveSmallIntegerField()
-    sleep_h = models.FloatField()
-    symptoms = models.JSONField(default=list, blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    class Meta:
-        ordering = ["-created_at"]
-
-    def __str__(self):
-        return f"Check-in for mission day {self.day}"
-
-
 def crew_photo_path(instance, filename):
     return f"crew/{uuid.uuid4().hex}.jpg"
 
@@ -71,6 +31,25 @@ class CrewMember(models.Model):
     @property
     def initials(self):
         return "".join(part[0] for part in self.full_name.split()[:2]).upper()
+
+    def mission_clock(self, today=None):
+        """('day', n) once the mission has started, ('countdown', n) before launch, else None."""
+        if not self.mission_start:
+            return None
+        from datetime import date
+
+        delta = ((today or date.today()) - self.mission_start).days
+        return ("day", delta + 1) if delta >= 0 else ("countdown", -delta)
+
+    @property
+    def age(self):
+        if not self.date_of_birth:
+            return None
+        from datetime import date
+
+        today = date.today()
+        born = self.date_of_birth
+        return today.year - born.year - ((today.month, today.day) < (born.month, born.day))
 
 
 class Developer(models.Model):
@@ -108,12 +87,3 @@ class UserProfile(models.Model):
     def initials(self):
         name = self.display_name or self.user.get_full_name() or self.user.get_username()
         return "".join(part[0] for part in name.split()[:2]).upper()
-
-
-class DatasetCalibration(models.Model):
-    id = models.PositiveSmallIntegerField(primary_key=True, default=1, editable=False)
-    baseline_rows = models.PositiveIntegerField()
-    means = models.JSONField()
-    deviations = models.JSONField()
-    report = models.JSONField()
-    trained_at = models.DateTimeField(auto_now=True)

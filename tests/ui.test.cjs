@@ -10,10 +10,9 @@ function element(extra = {}) {
     setAttribute(name, value) { this[name] = value; },
   }, extra);
 }
-function boot({ saved = null, unavailable = false, cards = [], links = [], training = null } = {}) {
+function boot({ saved = null, unavailable = false, cards = [], links = [] } = {}) {
   let stored = saved;
-  const controls = Object.fromEntries(['appearance-theme', 'appearance-background', 'connection-status'].map(id => [id, element()]));
-  if (training) controls["training-dialog"] = training.dialog;
+  const controls = Object.fromEntries(['appearance-theme', 'connection-status'].map(id => [id, element()]));
   const input = element();
   const count = element();
   const toolbar = element({ querySelector: selector => selector === 'input' ? input : count });
@@ -24,8 +23,8 @@ function boot({ saved = null, unavailable = false, cards = [], links = [], train
   const document = {
     documentElement: element(), body: element(),
     getElementById: id => controls[id],
-    querySelector: selector => selector === "[data-open-training]" ? training?.opener : grid,
-    querySelectorAll: selector => selector.startsWith('.main-nav') ? links : selector === 'form.training-form' && training ? [training.form] : [],
+    querySelector: () => grid,
+    querySelectorAll: selector => selector.startsWith('.main-nav') ? links : [],
     createElement: () => toolbar,
   };
   const window = element();
@@ -38,22 +37,23 @@ function boot({ saved = null, unavailable = false, cards = [], links = [], train
   });
   return { document, controls, window, navigator, input, count, get stored() { return stored; } };
 }
-test('preferences restore, change, and synchronize across tabs', () => {
-  const ui = boot({ saved: JSON.stringify({ theme: 'dark', background: 'Waves' }) });
-  assert.equal(ui.document.documentElement.dataset.theme, 'dark');
-  assert.equal(ui.document.body.dataset.background, 'Waves');
-  ui.controls['appearance-background'].value = 'Rosette';
-  ui.controls['appearance-background'].listeners.change();
-  assert.equal(JSON.parse(ui.stored).background, 'Rosette');
-  ui.window.listeners.storage({ key: 'astrodoctor-ui-v1', newValue: '{"theme":"light","background":"Code"}' });
-  assert.equal(ui.document.body.dataset.background, 'Code');
+test('theme preference restores, changes, and synchronizes across tabs', () => {
+  const ui = boot({ saved: JSON.stringify({ theme: 'light', background: 'Waves' }) });
+  assert.equal(ui.document.documentElement.dataset.theme, 'light');
+  assert.deepEqual(JSON.parse(ui.stored), { theme: 'light' });  // old backdrop setting is dropped
+  ui.controls['appearance-theme'].value = 'dark';
+  ui.controls['appearance-theme'].listeners.change();
+  assert.equal(JSON.parse(ui.stored).theme, 'dark');
+  ui.window.listeners.storage({ key: 'astrodoctor-ui-v1', newValue: '{"theme":"light"}' });
+  assert.equal(ui.document.documentElement.dataset.theme, 'light');
   assert.equal(ui.controls['appearance-theme'].value, 'light');
+  ui.window.listeners.storage({ key: 'astrodoctor-ui-v1', newValue: '{"theme":"neon"}' });
+  assert.equal(ui.document.documentElement.dataset.theme, 'light');
 });
 test('invalid and unavailable storage fall back without breaking the UI', () => {
-  for (const settings of [{ saved: '{bad json' }, { unavailable: true }, { saved: '{"theme":"arbitrary","background":"../../bad"}' }]) {
+  for (const settings of [{ saved: '{bad json' }, { unavailable: true }, { saved: '{"theme":"arbitrary"}' }]) {
     const ui = boot(settings);
     assert.equal(ui.document.documentElement.dataset.theme, 'dark');
-    assert.equal(ui.document.body.dataset.background, 'Orbits');
     assert.match(ui.controls['connection-status'].textContent, /Online/);
   }
 });
@@ -84,32 +84,4 @@ test('navigation marks the crew section active on nested pages', () => {
   boot({ links: [crew, health] });
   assert.equal(crew['aria-current'], 'page');
   assert.equal(health['aria-current'], undefined);
-});
-
-test('training modal opens, closes, updates split, and reports submission state', () => {
-  const split = element({ value: '21', max: '35', validity: { valid: true } });
-  const hint = element();
-  const button = element();
-  const status = element();
-  const form = element({
-    querySelector: selector => ({ '[name="baseline_rows"]': split, '#training-split': hint, '[type="submit"]': button, '[data-training-status]': status }[selector]),
-    removeAttribute(name) { delete this[name]; },
-  });
-  const close = element();
-  const dialog = element({ open: false, showModal() { this.open = true; }, close() { this.open = false; }, querySelector: () => close });
-  const opener = element();
-  boot({ training: { dialog, opener, form } });
-  let prevented = false;
-  opener.listeners.click({ preventDefault() { prevented = true; } });
-  assert.equal(prevented, true);
-  assert.equal(dialog.open, true);
-  close.listeners.click();
-  assert.equal(dialog.open, false);
-  split.value = '28';
-  split.listeners.input();
-  assert.match(hint.textContent, /28 baseline rows · 14 later evaluation rows/);
-  form.listeners.submit();
-  assert.equal(button.disabled, true);
-  assert.equal(form['aria-busy'], 'true');
-  assert.match(status.textContent, /Fitting baseline/);
 });

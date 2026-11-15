@@ -1,0 +1,70 @@
+{% extends "health/base.html" %}
+{% load wellbeing_tags %}
+{% block title %}Your recommendation · Astro-Doctor{% endblock %}
+{% block content %}
+{% with rec=session.recommended_info %}
+{% include "wellbeing/_flow.html" with step=2 %}
+<form method="post" action="{% url 'wellbeing_session_start' session.pk %}">
+  {% csrf_token %}
+  <section class="wb-rec">
+    <div class="wb-rec-art is-animated">{% include "wellbeing/_art.html" with key=rec.key %}<span class="wb-rec-badge">{% if session.exploring %}Exploring for you{% else %}Best match{% endif %}</span></div>
+    <div class="wb-rec-body">
+      <p class="eyebrow">Adaptive engine · day {{ checkin.mission_day }} · {{ checkin.phase_short }}</p>
+      <h1>{{ rec.theme }}<span class="wb-rec-sub">{{ rec.title }}</span></h1>
+      <p class="muted wb-lede">{{ rec.summary }}</p>
+      <div class="wb-rec-metrics">
+        <div class="wb-gauge" style="--value: {{ gauge }}" role="img" aria-label="Expected benefit {{ top.expected|signed }}"><div class="wb-gauge-inner"><b>{{ top.expected|signed }}</b><small>expected lift</small></div></div>
+        <dl class="wb-facts">
+          <div><dt>Suggested length</dt><dd>{{ session.recommended_minutes }} min</dd></div>
+          <div><dt>Based on</dt><dd>{% if top.sessions %}{{ top.sessions }} of your re-checks{% else %}Crew-wide model{% endif %}</dd></div>
+          <div><dt>Mood now</dt><dd>{{ checkin.mood }}/5 · stress {{ checkin.stress }}/5</dd></div>
+        </dl>
+      </div>
+      {% if reason_items %}
+      <ul class="wb-reasons">
+        {% for reason in reason_items %}<li class="wb-reason-{{ reason.kind }}"><span class="wb-reason-icon" aria-hidden="true">{% if reason.kind == "up" %}↑{% elif reason.kind == "down" %}↓{% elif reason.kind == "personal" %}★{% else %}✦{% endif %}</span>{{ reason.text }}</li>{% endfor %}
+      </ul>
+      {% endif %}
+    </div>
+  </section>
+
+  <section class="wb-section">
+    <div class="wb-section-head"><div><p class="eyebrow">Or choose another world</p><h2>Ranked for how you feel</h2></div><p class="muted wb-head-note">Your re-check counts whichever world you pick.</p></div>
+    <div class="wb-choices">
+      {% for option in options %}
+      <label class="wb-choice{% if option.blocked %} is-blocked{% endif %}">
+        <input type="radio" name="scene" value="{{ option.key }}" data-title="{{ option.scene.theme }}" {% if option.key == session.recommended_scene %}checked{% endif %} {% if option.blocked %}disabled{% endif %}>
+        <span class="wb-choice-card">
+          <span class="wb-choice-art">{% include "wellbeing/_art.html" with key=option.key %}<span class="wb-choice-tick" aria-hidden="true">✓</span></span>
+          <span class="wb-choice-body">
+            <b>{{ option.scene.theme }}</b><small>{{ option.scene.title }}</small>
+            {% if option.blocked %}
+            <span class="wb-blocked">🔒 {{ option.blocked }}</span>
+            {% else %}
+            <span class="wb-meter" role="img" aria-label="Expected benefit {{ option.expected|signed }}"><i style="width: {{ option.bar }}%"></i></span>
+            <span class="wb-choice-meta"><span>{{ option.expected|signed }} lift</span><span>{% if option.sessions %}★ {{ option.sessions }} re-check{{ option.sessions|pluralize }}{% else %}new for you{% endif %}</span></span>
+            {% endif %}
+          </span>
+        </span>
+      </label>
+      {% endfor %}
+    </div>
+  </section>
+
+  <div class="wb-submit-bar">
+    <fieldset class="wb-duration">
+      <legend>Session length</legend>
+      <div class="wb-segments">
+        {% for minutes in durations %}<label class="wb-segment">
+          <input type="radio" name="minutes" value="{{ minutes }}" {% if minutes == session.recommended_minutes %}checked{% endif %}><span>{{ minutes }}′{% if minutes == session.recommended_minutes %}<i class="wb-dot" title="Suggested"></i>{% endif %}</span>
+        </label>{% endfor %}
+      </div>
+    </fieldset>
+    <button class="button button-quiet" type="submit" form="skip-form">Not now</button>
+    <button class="button button-primary button-lg" type="submit">Launch <span data-chosen-label>{{ rec.theme }}</span> →</button>
+  </div>
+  <p class="fine-print">Expected lift = predicted change in mood plus half the drop in stress. Model {{ session.model_version }}.</p>
+</form>
+<form id="skip-form" method="post" action="{% url 'wellbeing_session_skip' session.pk %}">{% csrf_token %}</form>
+{% endwith %}
+{% endblock %}

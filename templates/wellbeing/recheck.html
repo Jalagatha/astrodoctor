@@ -1,0 +1,21 @@
+{% extends "health/base.html" %}
+{% block title %}Re-check · Astro-Doctor{% endblock %}
+{% block content %}
+<div class="page-heading wb-narrow"><div><p class="eyebrow">Step 4 · Re-check</p><h1>Welcome back. How do you feel now?</h1><p class="muted">After {{ session.minutes_completed|floatformat:"-1" }} min in {{ session.scene_info.theme }}: {{ session.scene_info.title }}. Your earlier answers are marked <em class="wb-before wb-before-inline">before</em>.</p></div></div>
+<div class="wb-narrow">
+{% include "wellbeing/_flow.html" with step=4 %}
+<form method="post" class="wb-form" data-progress-form novalidate>
+  {% csrf_token %}
+  <div class="card wb-q-card">
+    {% include "wellbeing/_scale.html" with field=form.mood_after before=checkin.mood %}
+    {% include "wellbeing/_scale.html" with field=form.energy_after before=checkin.energy %}
+    {% include "wellbeing/_scale.html" with field=form.stress_after before=checkin.stress polarity="negative" %}
+    {% include "wellbeing/_scale.html" with field=form.enjoyment hint="Did you like this world?" %}
+  </div>
+  <div class="wb-submit-bar">
+    <div class="wb-progress-wrap"><span class="wb-progress-label" data-progress-label>Answer each question</span><div class="wb-progress"><i data-progress-bar></i></div></div>
+    <button class="button button-primary button-lg" type="submit">Save re-check</button>
+  </div>
+</form>
+</div>
+{% endblock %}

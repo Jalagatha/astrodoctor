@@ -1,0 +1,99 @@
+{% extends "health/base.html" %}
+{% load wellbeing_tags %}
+{% block title %}Wellbeing · Astro-Doctor{% endblock %}
+{% block content %}
+<section class="wb-home-hero">
+  <div class="wb-home-copy">
+    <p class="eyebrow">Crew wellbeing · mission control</p>
+    <h1>{{ greeting }}, {{ name }}.<br><span class="wb-gradient-text">How are you feeling?</span></h1>
+    <p class="muted wb-lede">A one-minute check-in lets the adaptive engine pick the VR world that suits you right now. Your re-check afterwards teaches it what works for you.</p>
+    {% if model_error %}
+    <div class="wb-notice"><b>Recommendations are offline.</b> <span class="muted">{{ model_error }}</span></div>
+    {% endif %}
+    <div class="wb-hero-actions">
+      {% if open_session %}
+      <a class="button button-primary button-lg" href="{% url 'wellbeing_session' open_session.pk %}">Resume {{ open_session.scene_info.theme }} →</a>
+      <span class="muted wb-hero-note">{{ open_session.get_status_display }} · mission day {{ open_session.checkin.mission_day }}</span>
+      {% else %}
+      <a class="button button-primary button-lg" href="{% url 'wellbeing_checkin' %}">Start check-in →</a>
+      <span class="muted wb-hero-note">About one minute · 6 quick questions</span>
+      {% endif %}
+    </div>
+  </div>
+  {% include "wellbeing/_orbit.html" %}
+</section>
+
+<section class="wb-stats" aria-label="Your wellbeing at a glance">
+  <article class="card wb-stat"><span class="wb-stat-label">Sessions completed</span><b class="wb-stat-value">{{ stats.sessions }}</b><span class="wb-stat-sub">{% if stats.streak %}{{ stats.streak }}-day streak{% else %}Start your first today{% endif %}</span></article>
+  <article class="card wb-stat"><span class="wb-stat-label">Average mood lift</span><b class="wb-stat-value{% if stats.mean_lift and stats.mean_lift > 0 %} is-good{% endif %}">{% if stats.mean_lift is not None %}{{ stats.mean_lift|signed }}{% else %}–{% endif %}</b><span class="wb-stat-sub">points on the 1–5 scale</span></article>
+  <article class="card wb-stat"><span class="wb-stat-label">Sessions that helped</span><b class="wb-stat-value">{% if stats.improved_share is not None %}{{ stats.improved_share }}<small>%</small>{% else %}–{% endif %}</b><span class="wb-stat-sub">mood higher afterwards</span></article>
+  <article class="card wb-stat"><span class="wb-stat-label">Your best world</span><b class="wb-stat-value wb-stat-word">{{ stats.favourite.theme|default:"–" }}</b><span class="wb-stat-sub">{% if stats.favourite %}{{ stats.favourite.title }}{% else %}learned from re-checks{% endif %}</span></article>
+</section>
+
+{% include "wellbeing/_flow.html" with step=0 %}
+
+<section class="wb-section">
+  <div class="wb-section-head"><div><p class="eyebrow">Theme worlds</p><h2>Where would you like to go?</h2></div></div>
+  <div class="wb-worlds">
+    {% for item in themes %}
+    <article class="wb-world">
+      <div class="wb-world-art">{% include "wellbeing/_art.html" with key=item.scene.key %}</div>
+      <div class="wb-world-body">
+        <h3>{{ item.scene.theme }}</h3>
+        <p>{{ item.scene.title }}</p>
+        {% if item.sessions %}
+        <span class="wb-chip{% if item.mean_mood_change > 0 %} is-good{% endif %}">{{ item.mean_mood_change|signed }} mood · {{ item.sessions }}×</span>
+        {% else %}
+        <span class="wb-chip is-quiet">Not visited yet</span>
+        {% endif %}
+      </div>
+    </article>
+    {% endfor %}
+  </div>
+</section>
+
+<div class="wb-home-grid">
+  <section class="card wb-panel">
+    <div class="wb-section-head"><div><p class="eyebrow">Mood telemetry</p><h2>Before and after each session</h2></div>
+    <div class="wb-legend"><span><i class="wb-key wb-key-before"></i>Before</span><span><i class="wb-key wb-key-after"></i>After</span></div></div>
+    {% if chart %}
+    <svg class="wb-chart" viewBox="0 0 {{ chart.width }} {{ chart.height }}" role="img" aria-label="Mood before and after your last {{ chart.points|length }} sessions">
+      <defs><linearGradient id="wb-chart-fill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--accent)" stop-opacity=".28"/><stop offset="1" stop-color="var(--accent)" stop-opacity="0"/></linearGradient></defs>
+      {% for line in chart.grid %}<line x1="20" x2="{{ chart.width }}" y1="{{ line.y }}" y2="{{ line.y }}" class="wb-chart-grid"/><text x="4" y="{{ line.y }}" dy="4" class="wb-chart-label">{{ line.value }}</text>{% endfor %}
+      <polygon points="{{ chart.after_area }}" fill="url(#wb-chart-fill)"/>
+      <polyline points="{{ chart.before_line }}" class="wb-chart-before"/>
+      <polyline points="{{ chart.after_line }}" class="wb-chart-after"/>
+      {% for p in chart.points %}
+      <line x1="{{ p.x }}" x2="{{ p.x }}" y1="{{ p.before }}" y2="{{ p.after }}" class="wb-chart-link"/>
+      <circle cx="{{ p.x }}" cy="{{ p.before }}" r="3.5" class="wb-chart-dot-before"><title>Day {{ p.day }} · {{ p.scene }}: mood {{ p.mood_before }} → {{ p.mood_after }}</title></circle>
+      <circle cx="{{ p.x }}" cy="{{ p.after }}" r="5" class="wb-chart-dot-after"><title>Day {{ p.day }} · {{ p.scene }}: mood {{ p.mood_before }} → {{ p.mood_after }}</title></circle>
+      <text x="{{ p.x }}" y="{{ chart.height }}" dy="-6" text-anchor="middle" class="wb-chart-label">D{{ p.day }}</text>
+      {% endfor %}
+    </svg>
+    {% else %}
+    <div class="wb-empty"><p class="muted">Complete two sessions to see how your mood changes before and after each one.</p></div>
+    {% endif %}
+  </section>
+
+  <section class="card wb-panel">
+    <div class="wb-section-head"><div><p class="eyebrow">Mission log</p><h2>Recent sessions</h2></div></div>
+    {% if recent %}
+    <ul class="wb-log">
+      {% for session in recent %}
+      <li>
+        <a href="{% url 'wellbeing_session' session.pk %}">
+          <span class="wb-log-art">{% include "wellbeing/_art.html" with key=session.scene_info.key %}</span>
+          <span class="wb-log-text"><b>{{ session.scene_info.theme }}</b><small>Day {{ session.checkin.mission_day }} · {{ session.get_status_display }}{% if session.scene and not session.followed_recommendation %} · own choice{% endif %}</small></span>
+          {% if session.mood_after %}
+          <span class="wb-chip{% if session.mood_after > session.checkin.mood %} is-good{% elif session.mood_after < session.checkin.mood %} is-bad{% endif %}">{{ session.checkin.mood }} → {{ session.mood_after }}</span>
+          {% else %}<span class="wb-chip is-quiet">{{ session.get_status_display }}</span>{% endif %}
+        </a>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <div class="wb-empty"><p class="muted">No sessions yet. Your first check-in starts here.</p><a class="button button-secondary" href="{% url 'wellbeing_checkin' %}">Check in</a></div>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}

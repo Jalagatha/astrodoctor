@@ -1,11 +1,49 @@
 {% extends "health/base.html" %}
 {% block title %}{{ member.full_name }} · Astro-Doctor{% endblock %}
 {% block content %}
-<a class="back-link" href="{% url 'crew_list' %}">← All crew members</a>
-<section class="mission-banner profile-banner"><span class="crew-badge">{{ member.get_status_display }}</span><p class="eyebrow">{{ member.mission }}</p><h1>{{ member.full_name }}</h1><p>{{ member.role }}{% if member.call_sign %} · “{{ member.call_sign }}”{% endif %}</p></section>
-<section class="card profile-detail">
-<div class="section-heading"><div class="profile-identity">{% include "health/portrait.html" %}<div><p class="eyebrow">MISSION PERSONNEL</p><h2>{{ member.full_name }}</h2><p class="muted">{{ member.agency|default:"Agency not specified" }}</p></div></div><a class="button button-primary" href="{% url 'crew_edit' member.pk %}">Edit profile</a></div>
-<dl class="profile-facts"><div><dt>Nationality</dt><dd>{{ member.nationality|default:"Not specified" }}</dd></div><div><dt>Mission</dt><dd>{{ member.mission }}</dd></div><div><dt>Mission start</dt><dd>{{ member.mission_start|date:"j M Y"|default:"Not specified" }}</dd></div><div><dt>Date of birth</dt><dd>{{ member.date_of_birth|date:"j M Y"|default:"Not specified" }}</dd></div><div><dt>Contact email</dt><dd>{{ member.email|default:"Not specified" }}</dd></div><div><dt>Last updated</dt><dd>{{ member.updated_at|date:"j M Y" }}</dd></div></dl>
-<h2>About</h2><div class="profile-bio muted">{{ member.biography|default:"No biography added yet."|linebreaks }}</div>
+<a class="cr-back" href="{% url 'crew_list' %}">← All crew members</a>
+
+<section class="cr-dossier cr-{{ member.status }}">
+  <div class="cr-dossier-cover is-animated" aria-hidden="true">{% include "wellbeing/_art.html" with key="calm" %}</div>
+  <div class="cr-dossier-id">
+    <span class="cr-avatar cr-avatar-lg">{% if member.photo %}<img src="{% url 'crew_photo' member.pk %}" alt="Portrait of {{ member.full_name }}" width="140" height="140">{% else %}<span aria-label="No portrait uploaded">{{ member.initials }}</span>{% endif %}</span>
+    <div class="cr-dossier-name">
+      <p class="eyebrow">Crew dossier · {{ member.mission }}</p>
+      <h1>{{ member.full_name }}</h1>
+      <p class="cr-role">{{ member.role }}{% if member.call_sign %} · <span class="cr-callsign">“{{ member.call_sign }}”</span>{% endif %}</p>
+      <div class="pf-badges">
+        <span class="cr-status"><i class="cr-dot cr-dot-{{ member.status }}"></i>{{ member.get_status_display }}</span>
+        {% if member.agency %}<span class="wb-chip">{{ member.agency }}</span>{% endif %}
+        {% if member.nationality %}<span class="wb-chip">{{ member.nationality }}</span>{% endif %}
+      </div>
+    </div>
+    <a class="button button-primary button-lg" href="{% url 'crew_edit' member.pk %}">Edit profile</a>
+  </div>
+  <dl class="pf-stats">
+    <div><dt>Mission</dt><dd>{{ member.mission }}</dd></div>
+    <div><dt>{% if clock.0 == "countdown" %}Launch in{% else %}Mission day{% endif %}</dt><dd{% if clock.0 == "day" %} class="is-good"{% endif %}>{% if clock %}{% if clock.0 == "day" %}Day {{ clock.1 }}{% else %}{{ clock.1 }} day{{ clock.1|pluralize }}{% endif %}{% else %}–{% endif %}</dd></div>
+    <div><dt>Mission start</dt><dd>{{ member.mission_start|date:"j M Y"|default:"–" }}</dd></div>
+    <div><dt>Age</dt><dd>{{ member.age|default:"–" }}</dd></div>
+  </dl>
 </section>
+
+<div class="cr-detail-grid">
+  <section class="card pf-panel">
+    <p class="eyebrow">Biography</p>
+    <h2>About {{ member.full_name.split.0 }}</h2>
+    <div class="cr-bio">{% if member.biography %}{{ member.biography|linebreaks }}{% else %}<p class="muted">No biography added yet. <a href="{% url 'crew_edit' member.pk %}">Add one</a>.</p>{% endif %}</div>
+  </section>
+  <section class="card pf-panel">
+    <p class="eyebrow">Record</p>
+    <h2>Details</h2>
+    <dl class="cr-facts">
+      <div><dt>Call sign</dt><dd>{{ member.call_sign|default:"Not specified" }}</dd></div>
+      <div><dt>Agency</dt><dd>{{ member.agency|default:"Not specified" }}</dd></div>
+      <div><dt>Nationality</dt><dd>{{ member.nationality|default:"Not specified" }}</dd></div>
+      <div><dt>Date of birth</dt><dd>{{ member.date_of_birth|date:"j M Y"|default:"Not specified" }}</dd></div>
+      <div><dt>Contact</dt><dd>{% if member.email %}<a href="mailto:{{ member.email }}">{{ member.email }}</a>{% else %}Not specified{% endif %}</dd></div>
+      <div><dt>Last updated</dt><dd>{{ member.updated_at|date:"j M Y, H:i" }}</dd></div>
+    </dl>
+  </section>
+</div>
 {% endblock %}
