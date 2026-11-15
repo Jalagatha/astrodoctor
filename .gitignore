@@ -12,4 +12,4 @@ ml_models/*.joblib
 data/uploads/
 
 # Database dumps contain personal data and password hashes; never commit them.
-
+backups/
